@@ -7,7 +7,7 @@
 
     <context-param>
         <param-name>db.url</param-name>
-        <param-value>jdbc:postgresql://localhost:5432/reservation_voiture</param-value>
+        <param-value>jdbc:postgresql://localhost:5432/reservation_voiture?currentSchema=dev</param-value>
     </context-param>
     <context-param>
         <param-name>db.user</param-name>
