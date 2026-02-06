@@ -11,7 +11,7 @@ import java.util.List;
 
 public class HotelRepository {
     public List<Hotel> findAll() throws SQLException {
-        String sql = "SELECT Id_Hotel, nom FROM Hotel ORDER BY Id_Hotel";
+        String sql = "SELECT Id_Hotel, nom FROM dev.Hotel ORDER BY Id_Hotel";
         List<Hotel> hotels = new ArrayList<>();
 
         try (Connection connection = DbConnection.getConnection();

@@ -9,7 +9,7 @@ import java.sql.Timestamp;
 
 public class ReservationRepository {
     public void insert(Reservation reservation) throws SQLException {
-        String sql = "INSERT INTO reservation(DateHeureArrive, idClient, nbPassager, Id_Hotel) VALUES (?, ?, ?, ?)";
+        String sql = "INSERT INTO dev.reservation(DateHeureArrive, idClient, nbPassager, Id_Hotel) VALUES (?, ?, ?, ?)";
 
         try (Connection connection = DbConnection.getConnection();
              PreparedStatement statement = connection.prepareStatement(sql)) {
@@ -31,7 +31,7 @@ public class ReservationRepository {
     public java.util.List<Reservation> findAllWithHotel() throws SQLException {
         String sql = "SELECT r.Id_reservation, r.DateHeureArrive, r.idClient, r.nbPassager, " +
                      "h.Id_Hotel, h.nom " +
-                     "FROM reservation r " +
+                     "FROM dev.reservation r " +
                      "JOIN Hotel h ON r.Id_Hotel = h.Id_Hotel " +
                      "ORDER BY r.Id_reservation";
         java.util.List<Reservation> reservations = new java.util.ArrayList<>();
