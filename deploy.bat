@@ -6,10 +6,10 @@ set SRC=src
 set BUILD=build
 set LIB_WEBINF=WEB-INF\lib
 set CLASSES_WEBINF=WEB-INF\classes
-set TOMCAT_LIB=C:\tomcat11\apache-tomcat-11.0.7\lib
+set TOMCAT_LIB=C:\tomcat10\apache-tomcat-10.1.28\lib
 set FRAMEWORK_JAR=..\Framework\framework.jar
 set WAR_NAME=%APP_NAME%.war
-set TOMCAT_PATH=C:\tomcat11\apache-tomcat-11.0.7
+set TOMCAT_PATH=C:\tomcat10\apache-tomcat-10.1.28
 set WEBAPP_SOURCE=%SRC%\main\webapp
 set APP_LIB=%WEBAPP_SOURCE%\WEB-INF\lib
 
