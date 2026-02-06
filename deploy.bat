@@ -49,10 +49,6 @@ if errorlevel 1 (
 )
 del sources.txt 2>nul
 
-if exist "%SRC%\com\cousin\model\*.java" (
-    echo Compilation des classes modele...
-    javac -classpath "%TOMCAT_LIB%\servlet-api.jar;%FRAMEWORK_JAR%;%APP_LIB%\*" -d %BUILD%\WEB-INF\classes "%SRC%\com\cousin\model\*.java"
-)
 
 rem Copier framework.jar
 copy /y %FRAMEWORK_JAR% %BUILD%\WEB-INF\lib\
