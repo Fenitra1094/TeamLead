@@ -7,7 +7,7 @@
 
     <context-param>
         <param-name>db.url</param-name>
-        <param-value>jdbc:postgresql://localhost:5432/reservation_voiture?currentSchema=dev</param-value>
+        <param-value>jdbc:postgresql://localhost:5432/reservation_voiture?currentSchema=staging</param-value>
     </context-param>
     <context-param>
         <param-name>db.user</param-name>
@@ -22,9 +22,9 @@
         <param-value>org.postgresql.Driver</param-value>
     </context-param>
 
-    <listener>
+    <!-- <listener>
         <listener-class>com.cousin.config.AppContextListener</listener-class>
-    </listener>
+    </listener> -->
     
     <servlet>
         <servlet-name>FrontServlet</servlet-name>

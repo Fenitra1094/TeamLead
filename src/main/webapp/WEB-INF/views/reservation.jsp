@@ -6,33 +6,46 @@
 <html>
 <head>
     <meta charset="UTF-8">
-    <title>Reservation</title>
+    <title>Reservation - BackOffice</title>
+    <style>
+        .error { color: red; font-weight: bold; }
+        .success { color: green; font-weight: bold; }
+    </style>
 </head>
 <body>
-<h2>Insertion Reservation</h2>
+<h2>Formulaire d'Insertion de Réservation - BackOffice</h2>
 
 <%
     Object message = request.getAttribute("message");
     if (message != null) {
 %>
-    <p><strong><%= message %></strong></p>
+    <p class="success"><%= message %></p>
+<%
+    }
+%>
+
+<%
+    Object error = request.getAttribute("error");
+    if (error != null) {
+%>
+    <p class="error">Erreur: <%= error %></p>
 <%
     }
 %>
 
 <form method="post" action="<%= request.getContextPath() %>/reservation/create">
-    <label>Date et heure d'arrivee</label><br>
+    <label>Date et heure d'arrivée <span style="color: red;">*</span></label><br>
     <input type="datetime-local" name="dateHeureArrive" required><br><br>
 
-    <label>Id client</label><br>
-    <input type="text" name="idClient" required><br><br>
+    <label>ID Client <span style="color: red;">*</span> (exactement 4 chiffres)</label><br>
+    <input type="text" name="idClient" pattern="\d{4}" maxlength="4" placeholder="ex: 1234" required><br><br>
 
-    <label>Nombre de passagers</label><br>
+    <label>Nombre de passagers <span style="color: red;">*</span></label><br>
     <input type="number" name="nbPassager" min="1" required><br><br>
 
-    <label>Hotel</label><br>
+    <label>Hôtel <span style="color: red;">*</span></label><br>
     <select name="hotel.idHotel" required>
-        <option value="">-- Choisir --</option>
+        <option value="">-- Sélectionner un hôtel --</option>
         <%
             List<Hotel> hotels = (List<Hotel>) request.getAttribute("hotels");
             if (hotels != null) {
@@ -47,6 +60,10 @@
     <br><br>
 
     <button type="submit">Enregistrer</button>
+    <button type="reset">Réinitialiser</button>
 </form>
+
+<hr>
+<p><small>BackOffice - Formulaire réservation - Schema: staging</small></p>
 </body>
 </html>

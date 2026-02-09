@@ -31,12 +31,35 @@ public class ReservationController {
             @Param("idClient") String idClient,
             @Param("nbPassager") int nbPassager,
             @Param("hotel.idHotel") int hotelId) throws SQLException {
+        
+        // Validation: idClient doit contenir exactement 4 chiffres
+        if (idClient == null || !idClient.matches("\\d{4}")) {
+            ModelView mv = new ModelView("/WEB-INF/views/reservation.jsp");
+            mv.addAttribute("hotels", reservationService.listHotels());
+            mv.addAttribute("error", "ID Client doit contenir exactement 4 chiffres");
+            return mv;
+        }
+        
+        // Validation: nbPassager doit être > 0
+        if (nbPassager <= 0) {
+            ModelView mv = new ModelView("/WEB-INF/views/reservation.jsp");
+            mv.addAttribute("hotels", reservationService.listHotels());
+            mv.addAttribute("error", "Le nombre de passagers doit être supérieur à 0");
+            return mv;
+        }
+        
+        // Validation: dateHeureArrive ne doit pas être vide
+        if (dateHeureArrive == null || dateHeureArrive.isBlank()) {
+            ModelView mv = new ModelView("/WEB-INF/views/reservation.jsp");
+            mv.addAttribute("hotels", reservationService.listHotels());
+            mv.addAttribute("error", "La date et l'heure d'arrivée sont requises");
+            return mv;
+        }
+        
         Reservation reservation = new Reservation();
         reservation.setIdClient(idClient);
         reservation.setNbPassager(nbPassager);
-        if (dateHeureArrive != null && !dateHeureArrive.isBlank()) {
-            reservation.setDateHeureArrive(LocalDateTime.parse(dateHeureArrive));
-        }
+        reservation.setDateHeureArrive(LocalDateTime.parse(dateHeureArrive));
 
         Hotel hotel = new Hotel();
         hotel.setIdHotel(hotelId);
@@ -46,7 +69,7 @@ public class ReservationController {
 
         ModelView mv = new ModelView("/WEB-INF/views/reservation.jsp");
         mv.addAttribute("hotels", reservationService.listHotels());
-        mv.addAttribute("message", "Reservation enregistree");
+        mv.addAttribute("message", "Reservation enregistree avec succes!");
         return mv;
     }
 

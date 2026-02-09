@@ -1,3 +1,7 @@
+create database reservation_voiture;
+\c reservation_voiture
+
+
 CREATE SCHEMA IF NOT EXISTS dev;
 
 CREATE TABLE IF NOT EXISTS dev.Hotel(

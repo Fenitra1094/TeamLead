@@ -1,14 +1,20 @@
-package com.cousin.config;
+/*package com.cousin.config;
 
 import com.cousin.util.DbConnection;
-import jakarta.servlet.ServletContext;
-import jakarta.servlet.ServletContextEvent;
-import jakarta.servlet.ServletContextListener;
 
-public class AppContextListener implements ServletContextListener {
-    @Override
-    public void contextInitialized(ServletContextEvent sce) {
-        ServletContext ctx = sce.getServletContext();
+
+ * AppContextListener - Initialisation de la base de données
+ * Sprint 1 : Version simple sans dépendance Servlet API
+ 
+public class AppContextListener {
+    
+    /**
+     * Initialiser la base de données
+     * À appeler depuis web.xml ou une servlet d'initialisation
+    
+    public static void initDatabase() {
+        // Récupérer les paramètres de la BD depuis DbConnection
+        // Ces valeurs sont définies dans web.xml
         String url = ctx.getInitParameter("db.url");
         String user = ctx.getInitParameter("db.user");
         String password = ctx.getInitParameter("db.password");
@@ -24,5 +30,33 @@ public class AppContextListener implements ServletContextListener {
 
         DbConnection.init(url, user, password);
         ctx.log("Database initialized");
+    }
+}
+ */
+
+package com.cousin.config;
+
+import com.cousin.util.DbConnection;
+
+/**
+ * Initialise la base de données au démarrage de l'application
+ * (version simplifiée - pas de dépendance servlet pour Tomcat 11)
+ */
+public class AppContextListener {
+    
+    static {
+        // Bloc static pour initialiser au chargement de la classe
+        try {
+            Class.forName("org.postgresql.Driver");
+            DbConnection.init(
+                "jdbc:postgresql://localhost:5432/reservation_voiture?currentSchema=staging",
+                "postgres",
+                "postgres"
+            );
+            System.out.println("[OK] Database initialized for staging schema");
+        } catch (ClassNotFoundException e) {
+            System.err.println("[ERROR] PostgreSQL JDBC driver not found");
+            e.printStackTrace();
+        }
     }
 }

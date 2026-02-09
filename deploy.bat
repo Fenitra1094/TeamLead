@@ -7,7 +7,8 @@ set BUILD=build
 set LIB_WEBINF=WEB-INF\lib
 set CLASSES_WEBINF=WEB-INF\classes
 set TOMCAT_LIB=C:\tomcat11\apache-tomcat-11.0.7\lib
-set FRAMEWORK_JAR=..\Framework\framework.jar
+@REM set FRAMEWORK_JAR=..\Framework\framework.jar
+set FRAMEWORK_JAR=%WEBAPP_SOURCE%\WEB-INF\lib\framework.jar
 set WAR_NAME=%APP_NAME%.war
 set TOMCAT_PATH=C:\tomcat11\apache-tomcat-11.0.7
 set WEBAPP_SOURCE=%SRC%\main\webapp
@@ -40,7 +41,9 @@ set "CURRENT_DIR=%CD%"
 
 del sources_abs.tmp 2>nul
 
-javac -classpath "%TOMCAT_LIB%\servlet-api.jar;%FRAMEWORK_JAR%;%APP_LIB%\*" -parameters -d %BUILD%\WEB-INF\classes @"sources.txt"
+@REM javac -classpath "%TOMCAT_LIB%\servlet-api.jar;%FRAMEWORK_JAR%;%APP_LIB%\*" -parameters -d %BUILD%\WEB-INF\classes @"sources.txt"
+@REM javac -classpath "%TOMCAT_LIB%\servlet-api.jar;.;%APP_LIB%\*" -parameters -d %BUILD%\WEB-INF\classes @"sources.txt"
+javac --release 21 -classpath "%TOMCAT_LIB%\servlet-api.jar;%WEBAPP_SOURCE%\WEB-INF\lib\framework.jar;%APP_LIB%\*" -parameters -d %BUILD%\WEB-INF\classes @"sources.txt"
 if errorlevel 1 (
     echo Erreur de compilation!
     del sources.txt 2>nul
