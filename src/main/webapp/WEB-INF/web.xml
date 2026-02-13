@@ -22,9 +22,9 @@
         <param-value>org.postgresql.Driver</param-value>
     </context-param>
 
-    <!-- <listener>
+    <listener>
         <listener-class>com.cousin.config.AppContextListener</listener-class>
-    </listener> -->
+    </listener>
     
     <servlet>
         <servlet-name>FrontServlet</servlet-name>
