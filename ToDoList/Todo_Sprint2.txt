@@ -1,0 +1,37 @@
+Table Vehicule
+id
+reference
+place
+TypeCarburant => ESSENCE(ES), DIESEL(D), ELECTRIQUE(EL), Hybride(H)
+ 
+
+pas de FrontOffice
+
+CRUD 
+
+Preparation de protection de BO
+Table Token
+id
+token_libelle => generer token => GUID
+date_expiration (heure)
+ pas d'interface => main seulement pour populer ou remplir la table Token
+
+ date => efa lasa, ho avy => on peut regenerer
+
+
+
+Sprint 3
+FrontOffice => ajout token
+stockage token => constance ou fichier de configuration
+
+BackOffice => verification token
+
+apetaka @URL => token
+
+Appel avec URL => API => doit envoyer token
+fournisseur APi => token => entree dans requete 
+envoie dans Query seulement token
+arriver dans liste => on verifie d'abord token si existe ou pas 
+existe pas => refuser
+existe => verifier => expirer ou pas => expirer => pas d'acces
+pas expirer => on donne la reponse
