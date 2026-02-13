@@ -1,7 +1,7 @@
 @echo off
 setlocal enabledelayedexpansion
 
-set APP_NAME=test
+set APP_NAME=reservation
 set SRC=src
 set BUILD=build
 set LIB_WEBINF=WEB-INF\lib
@@ -14,6 +14,7 @@ set WAR_NAME=%APP_NAME%.war
 set TOMCAT_PATH=C:\apache-tomcat-10.1.28\apache-tomcat-10.1.28
 set WEBAPP_SOURCE=%SRC%\main\webapp
 set APP_LIB=%WEBAPP_SOURCE%\WEB-INF\lib
+set FRAMEWORK_JAR=%APP_LIB%\framework.jar
 
 rem Nettoyage
 echo Nettoyage du build...

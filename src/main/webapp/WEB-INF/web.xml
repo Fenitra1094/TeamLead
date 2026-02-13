@@ -15,7 +15,7 @@
     </context-param>
     <context-param>
         <param-name>db.password</param-name>
-        <param-value>1234</param-value>
+        <param-value>postgres</param-value>
     </context-param>
        <context-param>
         <param-name>db.password</param-name>
