@@ -73,3 +73,22 @@ BO :
 		Si expiree , pas d’acces a l’API
 		Si elle n’est pas expiree, elle a acces a l’API.
 	S’il n’existe pas, il n’a pas d’acces a l’api
+
+CHANGEMENT
+-Generer Token
+	.url:/token
+	.table
+		token
+			colonne: id,token(genrer par JWT en java), date d'expiration, duree de vie (duree de session)
+	.Formulaire pour date d'expiration, duree de vie
+	.Fonction:
+		.insertion dans table
+		.getToken(le token qui est actif now<date d'expiration)
+		String token = getToken()(ilay ampiasaina idirana @le api avy eo)
+		izany oe miverifier an'io token io lou izy zay vo afaka miditra ao @api/reservation/list_reservation
+		verifier(date d'expiration)
+-session
+	-Function
+		.CalculSession(Token)
+			rehefa tafiditra izy de tsy mila mampiditra token vaovao, raha ohatra ka mbola tsy tapitra nu duree de session , fa rehefa tapitra de miverina /token
+
