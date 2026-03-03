@@ -80,7 +80,6 @@ CHANGEMENT
 	.table
 		token
 			colonne: id,token(genrer par JWT en java), date d'expiration, duree de vie (duree de session)
-	.Formulaire pour date d'expiration, duree de vie
 	.Fonction:
 		.insertion dans table
 		.getToken(le token qui est actif now<date d'expiration)
