@@ -1,7 +1,7 @@
 @echo off
 setlocal enabledelayedexpansion
 
-set APP_NAME=reservation
+set APP_NAME=test
 set SRC=src
 set BUILD=build
 set LIB_WEBINF=WEB-INF\lib
