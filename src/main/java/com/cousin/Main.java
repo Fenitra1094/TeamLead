@@ -40,15 +40,27 @@ public final class Main {
         try {
             switch (action) {
                 case "generate":
-                    int hours = 24; // durée par défaut : 24h
+                    int hours = 8; // durée par défaut : 8h
                     if (args.length > 1) {
                         hours = Integer.parseInt(args[1]);
                     }
                     TokenExpiration newToken = tokenService.generateToken(hours);
-                    System.out.println("=== Nouveau token genere ===");
+                    System.out.println("=== Nouveau token genere (expire dans " + hours + "h) ===");
                     System.out.println("Token  : " + newToken.getToken());
                     System.out.println("Expire : " + newToken.getExpiration());
                     System.out.println("ID     : " + newToken.getId());
+                    break;
+
+                case "generate-min":
+                    int minutes = 10; // durée par défaut : 10 min
+                    if (args.length > 1) {
+                        minutes = Integer.parseInt(args[1]);
+                    }
+                    TokenExpiration newTokenMin = tokenService.generateTokenMinutes(minutes);
+                    System.out.println("=== Nouveau token genere (expire dans " + minutes + " min) ===");
+                    System.out.println("Token  : " + newTokenMin.getToken());
+                    System.out.println("Expire : " + newTokenMin.getExpiration());
+                    System.out.println("ID     : " + newTokenMin.getId());
                     break;
 
                 case "list":
@@ -72,9 +84,10 @@ public final class Main {
 
                 default:
                     System.out.println("Usage: Main <action> [options]");
-                    System.out.println("  generate [heures]  - Generer un nouveau token (defaut: 24h)");
-                    System.out.println("  list               - Lister tous les tokens");
-                    System.out.println("  clean              - Supprimer les tokens expires");
+                    System.out.println("  generate [heures]      - Generer un token (defaut: 8h)");
+                    System.out.println("  generate-min [minutes] - Generer un token (defaut: 10min)");
+                    System.out.println("  list                   - Lister tous les tokens");
+                    System.out.println("  clean                  - Supprimer les tokens expires");
                     break;
             }
         } catch (SQLException e) {

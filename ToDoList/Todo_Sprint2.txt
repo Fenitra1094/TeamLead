@@ -69,7 +69,7 @@ FO :
 -stocker token dans un fichier de configuration
 BO :
 -créer une fonction (fonctionnalite)  pour voir si’il a  le token dans le header
-	S’’il existe, on regarde si elle est expiree ou pas :
+	e
 		Si expiree , pas d’acces a l’API
 		Si elle n’est pas expiree, elle a acces a l’API.
 	S’il n’existe pas, il n’a pas d’acces a l’api

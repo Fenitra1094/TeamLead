@@ -2,7 +2,6 @@ package com.cousin.service;
 
 import com.cousin.model.TokenExpiration;
 import com.cousin.repository.TokenRepository;
-
 import java.sql.SQLException;
 import java.util.List;
 
@@ -46,10 +45,25 @@ public class TokenService {
     }
 
     /**
+     * Génère un nouveau token avec la durée d'expiration par défaut (8 heures).
+     */
+    public TokenExpiration generateToken() throws SQLException {
+        final int DUREE_EXPIRATION_HEURES = 8;
+        return tokenRepository.generateToken(DUREE_EXPIRATION_HEURES);
+    }
+
+    /**
      * Génère un nouveau token avec une durée d'expiration en heures.
      */
     public TokenExpiration generateToken(int expirationHours) throws SQLException {
         return tokenRepository.generateToken(expirationHours);
+    }
+
+    /**
+     * Génère un nouveau token avec une durée d'expiration en minutes.
+     */
+    public TokenExpiration generateTokenMinutes(int expirationMinutes) throws SQLException {
+        return tokenRepository.generateTokenMinutes(expirationMinutes);
     }
 
     /**
