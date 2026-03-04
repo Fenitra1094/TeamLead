@@ -76,8 +76,8 @@ public class ApiTokenFilter implements Filter {
     }
 
     /**
-     * Extrait le token depuis les headers HTTP.
-     * Cherche d'abord "X-API-TOKEN", puis "Authorization" (format: Bearer <token>).
+     * Extrait le token depuis les headers HTTP ou le query parameter.
+     * Priorité : 1) Header X-API-TOKEN, 2) Authorization Bearer, 3) Query param ?token=
      */
     private String extractToken(HttpServletRequest request) {
         // Priorité au header X-API-TOKEN
@@ -93,6 +93,12 @@ public class ApiTokenFilter implements Filter {
                 return authHeader.substring(7).trim();
             }
             return authHeader.trim();
+        }
+
+        // Sinon, chercher dans le query parameter ?token=
+        String queryToken = request.getParameter("token");
+        if (queryToken != null && !queryToken.isBlank()) {
+            return queryToken.trim();
         }
 
         return null;
