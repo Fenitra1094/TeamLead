@@ -1,0 +1,19 @@
+# WAR files
+*.war
+
+# Build output
+build/
+
+# IDE files
+.idea/
+*.iml
+.vscode/
+*.class
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Temp files
+*.tmp
+sources.txt

@@ -18,28 +18,4 @@ curl -H "Authorization: Bearer 550e8400-e29b-41d4-a716-446655440000" http://loca
 
 
 générer un nouveau token sans ouvrir psql
-java -Ddb.url="jdbc:postgresql://localhost:5432/reservation_voiture?currentSchema=dev" -Ddb.user=postgres -Ddb.password=nella -cp "build\WEB-INF\classes;build\WEB-INF\lib\*" com.cousin.Main generate
-
-
-
-
-renouveler un token expireer ou existant :
-REM Optionnel : nettoyer les anciens tokens expirés
-java -Ddb.url="jdbc:postgresql://localhost:5432/reservation_voiture?currentSchema=dev" -Ddb.user=postgres -Ddb.password=1234 -cp "build\WEB-INF\classes;build\WEB-INF\lib\*" com.cousin.Main clean
-
-REM Générer un nouveau token
 java -Ddb.url="jdbc:postgresql://localhost:5432/reservation_voiture?currentSchema=dev" -Ddb.user=postgres -Ddb.password=1234 -cp "build\WEB-INF\classes;build\WEB-INF\lib\*" com.cousin.Main generate
-
-
-
-REM Token qui expire dans 1 minute
-java -Ddb.url="jdbc:postgresql://localhost:5432/reservation_voiture?currentSchema=dev" -Ddb.user=postgres -Ddb.password=nella -cp "build\WEB-INF\classes;build\WEB-INF\lib\*" com.cousin.Main generate-min 1
-
-REM Token qui expire dans 5 minutes
-... com.cousin.Main generate-min 5
-
-REM Token qui expire dans 8 heures (par défaut)
-... com.cousin.Main generate
-
-
-http://localhost:8081/test/api/reservation/list?token=2cea85b4-9a0b-4537-b9b2-25389b9c6b6f
