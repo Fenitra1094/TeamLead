@@ -2,7 +2,6 @@ package com.cousin.repository;
 
 import com.cousin.model.TokenExpiration;
 import com.cousin.util.DbConnection;
-
 import java.sql.*;
 import java.util.ArrayList;
 import java.util.List;
@@ -100,6 +99,17 @@ public class TokenRepository {
         TokenExpiration tokenExpiration = new TokenExpiration();
         tokenExpiration.setToken(UUID.randomUUID().toString());
         tokenExpiration.setExpiration(java.time.LocalDateTime.now().plusHours(expirationHours));
+        insert(tokenExpiration);
+        return tokenExpiration;
+    }
+
+    /**
+     * Génère un nouveau token GUID et l'insère avec la durée d'expiration spécifiée (en minutes).
+     */
+    public TokenExpiration generateTokenMinutes(int expirationMinutes) throws SQLException {
+        TokenExpiration tokenExpiration = new TokenExpiration();
+        tokenExpiration.setToken(UUID.randomUUID().toString());
+        tokenExpiration.setExpiration(java.time.LocalDateTime.now().plusMinutes(expirationMinutes));
         insert(tokenExpiration);
         return tokenExpiration;
     }
