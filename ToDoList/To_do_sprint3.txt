@@ -1,0 +1,148 @@
+SPRINT3 - Assignation d une reservation a un vehicule 
+
+ROLE : 
+Team Lead - ETU 3371
+DEV 1 - ETU 3265
+DEV 2 - ETU XXXX
+// Mba fenoina azafady
+// Raha toa ka misy zavatra nataonareo tsy mifanaraka amin ilay to do fa mety, de teneno fotsiny aho hanamboarako azy 
+// Ataovy tsara ny sprint 3 antsika
+
+Tout sur BackOffice 
+
+DEV1 : 
+Branche 1 : sprint3/1/database_structure
+- Modifier Table Hotel -> ajout de la colonne code
+- Creer Table :
+   -> Distance :
+      Id_Distance SERIAL PK
+      from_hotel INT FK
+      to_hotel INT FK
+      km INT
+   -> Parametre :
+      code VARCHAR PK
+      valeur VARCHAR
+      unite VARCHAR
+      typeValeur VARCHAR
+      -> inserer : Vm | 30 | km | Integer (Vitesse Moyenne)
+   -> Assignation :
+      Id_Assignation SERIAL PK
+      Id_Reservation INT FK
+      Id_Vehicule INT FK
+      date_heure_depart TIMESTAMP
+      date_heure_retour TIMESTAMP
+- Creer index :
+   -> idx_assignation_vehicule_date
+   ON Assignation(Id_Vehicule, date_heure_depart, date_heure_retour)
+-Script :
+   -> reinitisalisation
+      base/reset/reset.sql (suppression des donnees des tables actuelles dans tous les schemas)  
+      Mettez une date a chaque changement 
+   -> initialisation
+      base/data/sprint3/init.sql (creation de donnee de test de tous les schemas avec les tables actuelles)
+Branche 2 : sprint3/1/distance_parametre_service
+- Model :
+   -> Distance
+   -> Parametre
+- Repository :
+   -> DistanceRepository
+      -> int getDistance(int idHotelA, int idHotelB)
+         Chercher A → B sinon chercher B → A et retourner la distance
+   -> ParametreRepository
+      -> String getValeurByCode(String code)
+- Service :
+   -> ParametreService
+      -> int getVm()
+         Appeler ParametreRepository.getValeurByCode("Vm") et convertir en int
+   -> DureeService
+      -> DureeResult calculerDuree(LocalDateTime dateArrivee, int idHotel)
+      Pour 
+         distance = DistanceRepository.getDistance(Aeroport, idHotel)
+         Vm = ParametreRepository.getVm()
+         dureeMinutes = (distance / Vm) * 60 * 2
+         dateDepart = dateArrivee
+         dateRetour = dateDepart + dureeMinutes
+- Util :
+   -> DureeResult
+      -> LocalDateTime dateDepart
+      -> LocalDateTime dateRetour
+      -> int dureeMinutes
+
+DEV2 :
+Branche 1 : sprint3/2/assignation_service
+- Model :   
+   -> Assignation
+   -> Vehicule 
+   -> Reservation
+   -> classe de DEV 1 (Distance, Parametre)
+- Repository :
+   -> AssignationRepository
+      -> void insertAssignation(Assignation assignation)
+      -> boolean existsAssignationForDate(LocalDate date)
+   -> VehiculeRepository
+      -> List<Vehicule> getVehiculesDisponible(int nbPassager, LocalDateTime dateDepart, LocalDateTime dateRetour)
+         Condition :
+            nbPlace >= nbPassager
+            ET
+            NOT (dateRetour <= ancien_debut OR dateDepart >= ancien_fin)
+   -> ReservationRepository
+      -> List<Reservation> getReservationsByDate(LocalDate date)
+         => Conversion interne :
+            LocalDateTime debut = date.atStartOfDay();
+            LocalDateTime fin = date.atTime(23,59,59);
+         => Requête SQL :
+            WHERE DateHeureArrive BETWEEN :debut AND :fin ORDER BY DateHeureArrive ASC
+- Service :
+   -> AssignationService
+      -> Boolean checkAssignationExistsForDate(LocalDate date)
+         => Appeler AssignationRepository.existsAssignationForDate(date)
+      -> AssignationResult assignerPourDate(LocalDate date)
+      Pour 
+         Si checkAssignationExistsForDate(date) == true
+         throw new IllegalStateException("Une assignation a deja ete effectue pour cette date")
+         BEGIN TRANSACTION
+            reservations = ReservationRepository.getReservationsByDate(date)
+            Pour chaque reservation R dans reservations
+               dureeResult = DureeService.calculerDuree(R.DateHeureArrive, R.Id_Hotel)
+               dateDepart = dureeResult.dateDepart
+               dateRetour = dureeResult.dateRetour
+
+               vehiculesDisponibles = VehiculeRepository.getVehiculesDisponible(R.nbPassager, dateDepart, dateRetour)
+
+               Si vehiculesDisponibles est vide
+                  -> Ajouter R dans listeNonAssignee
+                  -> Continuer boucle
+
+               Appliquer priorisation sur vehiculesDisponibles
+                  Étape 1 : Capacité minimale suffisante
+                     -> garder les véhicules avec nbPlace le plus proche possible (MIN(nbPlace) >= R.nbPassager)
+                  Étape 2 : Diesel prioritaire
+                     -> Si parmi ces véhicules il existe au moins un TypeVehicule = 'D'
+                        -> garder uniquement les Diesel
+                     -> Sinon
+                        -> garder tous les véhicules restants
+                  Étape 3 : Random
+                     -> sélection aléatoire
+                        (PostgreSQL : ORDER BY RANDOM() LIMIT 1)
+                     
+               Vehicule choisi = le véhicule qui reste après application de la priorisation
+
+               Créer Assignation
+               insertAssignation(assignation)
+         COMMIT
+         ROLLBACK si erreur
+- Util :
+   -> AssignationResult
+      -> List<Assignation> assignations
+      -> List<Reservation> reservationsNonAssignees
+Branche 2 : sprint3/2/assignation_controller
+- Controller :
+   -> AssignationController
+      -> Chemin : /assignation/form
+         - Affichage du formulaire pour choisir une date (input type date)
+      -> Chemin : /assignation/assigner?date=YYYY-MM-DD
+         - String dateStr → LocalDate
+         - Appeler AssignationService.assignerPourDate(date)
+         - Si illegalStateException est levée
+            -> Afficher message d erreur 
+         - Afficher le resultat de l assignation (assignations et reservations non assignees) dans une page JSP

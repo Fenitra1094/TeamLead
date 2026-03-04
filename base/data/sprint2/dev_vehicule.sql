@@ -1,5 +1,5 @@
 INSERT INTO dev.Vehicule (Reference, nbPlace, TypeVehicule) VALUES
-	('VH-001', 4, 'Berline'),
-	('VH-002', 5, 'SUV'),
-	('VH-003', 2, 'Coupe'),
-	('VH-004', 7, 'Monospace');
+	('VH-D-001', 4, 'D'),
+	('VH-ES-001', 5, 'ES'),
+	('VH-EL-001', 2, 'EL'),
+	('VH-H-001', 7, 'H');
