@@ -1,0 +1,30 @@
+package com.cousin.service;
+
+import com.cousin.repository.ParametreRepository;
+import java.sql.SQLException;
+
+public class ParametreService {
+    private final ParametreRepository parametreRepository;
+
+    public ParametreService() {
+        this.parametreRepository = new ParametreRepository();
+    }
+
+    public ParametreService(ParametreRepository parametreRepository) {
+        this.parametreRepository = parametreRepository;
+    }
+
+    public int getVm() throws SQLException {
+        String valeurVm = parametreRepository.getValeurByCode("Vm");
+
+        if (valeurVm == null || valeurVm.isBlank()) {
+            throw new SQLException("Parametre Vm introuvable");
+        }
+
+        try {
+            return Integer.parseInt(valeurVm);
+        } catch (NumberFormatException e) {
+            throw new SQLException("Valeur Vm invalide: " + valeurVm, e);
+        }
+    }
+}
