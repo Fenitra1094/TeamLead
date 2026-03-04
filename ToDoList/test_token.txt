@@ -42,4 +42,4 @@ REM Token qui expire dans 8 heures (par défaut)
 ... com.cousin.Main generate
 
 
-http://localhost:8081/reservation/api/reservation/list?token=2cea85b4-9a0b-4537-b9b2-25389b9c6b6f
+http://localhost:8081/test/api/reservation/list?token=2cea85b4-9a0b-4537-b9b2-25389b9c6b6f
