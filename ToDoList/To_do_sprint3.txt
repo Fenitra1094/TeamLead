@@ -2,7 +2,7 @@ SPRINT3 - Assignation d une reservation a un vehicule
 
 ROLE : 
 Team Lead - ETU 3371
-DEV 1 - ETU XXXX
+DEV 1 - ETU 3265
 DEV 2 - ETU XXXX
 // Mba fenoina azafady
 // Raha toa ka misy zavatra nataonareo tsy mifanaraka amin ilay to do fa mety, de teneno fotsiny aho hanamboarako azy 
