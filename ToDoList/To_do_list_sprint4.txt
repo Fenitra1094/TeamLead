@@ -1,0 +1,293 @@
+================================================================================
+SPRINT 4 - Assignation multi-client par véhicule et routage multi-hôtel
+================================================================================
+
+ROLE :
+Team Lead - ETU 3273
+DEV 1 - ETU XXXX
+DEV 2 - ETU XXXX
+
+Tout sur BackOffice
+
+DEV 1
+Branche 1 : sprint4/1/database_update
+--------------------------------------------------------------------------------
+-  Créer Table :
+   -> Trajet :
+      Id_Trajet SERIAL PK
+      Id_Vehicule INT FK REFERENCES Vehicule(Id_Vehicule)
+      date_heure_depart TIMESTAMP NOT NULL
+      date_heure_retour TIMESTAMP NOT NULL
+      date_assignation DATE NOT NULL
+
+   -> TrajetEtape :
+      Id_Trajet_Etape SERIAL PK
+      Id_Trajet INT FK REFERENCES Trajet(Id_Trajet)
+      Id_Hotel INT FK REFERENCES Hotel(Id_Hotel)
+      ordre INT NOT NULL
+      distance_depuis_precedent INT NOT NULL
+      // Chaque étape = un arrêt hôtel dans l'ordre du parcours
+
+- Modifier Table Assignation :
+   -> Ajouter colonne :
+      Id_Trajet INT FK REFERENCES Trajet(Id_Trajet) NULLABLE
+      // Relie chaque assignation à son trajet (plusieurs assignations = 1 trajet)
+
+- Créer index :
+   -> idx_trajet_vehicule_date
+      ON Trajet(Id_Vehicule, date_heure_depart, date_heure_retour)
+   -> idx_trajet_etape_trajet
+      ON TrajetEtape(Id_Trajet, ordre)
+
+- Script :
+   -> réinitialisation
+      base/reset/reset.sql (mettre à jour avec les nouvelles tables)
+      Mettre la date du changement
+   -> initialisation
+      base/data/sprint4/init.sql
+      Données de test :
+         - Au moins 4 véhicules (2 Diesel, 2 Essence, capacités variées : 7, 11, 12, 18)
+         - Au moins 3 hôtels + aéroport avec distances entre eux
+            -> Inclure au moins 2 hôtels à la même distance d'un même point
+               pour pouvoir tester la RG11 (égalité → lexicographique)
+               Ex: Aéroport → Panache = 15 km, Aéroport → Pachniko = 15 km
+         - Au moins 8 réservations à la même date :
+            -> 3 réservations avec exactement la même heure d'arrivée (même vol)
+               Ex: 09h30, 09h30, 09h30
+               Avec nbPassager variés : 11, 5, 3
+               Avec hôtels différents : Colbert, Nova, Hibiscus
+            -> 2 réservations avec exactement la même heure d'arrivée (autre vol)
+               Ex: 14h00, 14h00
+            -> 2 réservations avec exactement la même heure d'arrivée (autre vol)
+               Ex: 16h45, 16h45
+            -> 1 réservation isolée (vol avec un seul client)
+               Ex: 18h00
+            -> Varier les nbPassager : 5, 8, 3, 11, 4, 7, 2, 6
+            -> Varier les hôtels de destination
+
+Branche 2 : sprint4/1/route_service
+--------------------------------------------------------------------------------
+- Model :
+   -> Trajet
+      -> int idTrajet
+      -> int idVehicule
+      -> LocalDateTime dateHeureDepart
+      -> LocalDateTime dateHeureRetour
+      -> LocalDate dateAssignation
+      -> List<TrajetEtape> etapes    // Pour l'affichage
+      -> Vehicule vehicule           // Pour l'affichage
+
+   -> TrajetEtape
+      -> int idTrajetEtape
+      -> int idTrajet
+      -> int idHotel
+      -> int ordre
+      -> int distanceDepuisPrecedent
+      -> Hotel hotel                 // Pour l'affichage
+
+- Repository :
+   -> TrajetRepository
+      -> int insertTrajet(Trajet trajet, Connection conn)
+         Retourner l'id généré (RETURNING id_trajet)
+      -> void insertTrajetEtape(TrajetEtape etape, Connection conn)
+      -> List<Trajet> findTrajetsByDate(LocalDate date)
+         Avec jointures pour charger véhicule et étapes
+
+- Service :
+   -> RouteService
+      -> List<TrajetEtape> calculerRoute(List<Integer> idHotels)
+         Algorithme nearest-first avec tie-breaking lexicographique :
+            1. Point de départ = Aéroport (ID_AEROPORT = 1)
+            2. Parmi les hôtels restants, trouver le plus proche du point courant
+               -> Appeler DistanceRepository.getDistance(pointCourant, hotel)
+            3. Si plusieurs hôtels ont la même distance minimale (RG11) :
+               -> Comparer les noms (libellés) des hôtels par ordre lexicographique
+               -> Choisir celui dont le nom vient en premier alphabétiquement
+               -> Ex: distance Aéroport→Panache = 15 km et Aéroport→Pachniko = 15 km
+                  -> Comparer "Pachniko" vs "Panache"
+                  -> Les 2 premiers caractères sont identiques "Pa"
+                  -> 3ème caractère : 'c' < 'n'
+                  -> Donc Pachniko passe en premier
+            4. Ajouter cet hôtel comme prochaine étape (avec ordre et distance)
+            5. Ce hôtel devient le nouveau point courant
+            6. Répéter jusqu'à avoir visité tous les hôtels
+            7. Retour : ajouter distance du dernier hôtel vers l'aéroport
+         Retourner la liste ordonnée des étapes
+
+         // Pour l'implémentation : utiliser String.compareTo() de Java
+         // qui fait exactement la comparaison lexicographique souhaitée
+         // hotelA.getNom().compareTo(hotelB.getNom()) < 0 → A passe avant B
+
+      -> int calculerDistanceTotale(List<TrajetEtape> etapes)
+         Somme de toutes les distanceDepuisPrecedent (y compris retour aéroport)
+
+   -> Modifier DureeService :
+      -> Ajouter méthode :
+         DureeResult calculerDureeMultiStop(LocalDateTime dateDepart, List<TrajetEtape> etapes)
+         Pour
+            distanceTotale = somme des distances de toutes les étapes
+            Vm = ParametreService.getVm()
+            dureeMinutes = (distanceTotale / Vm) * 60
+            dateRetour = dateDepart + dureeMinutes
+         // Note : pas de * 2 car la distance totale inclut déjà l'aller ET le retour
+
+- Util :
+   -> Conserver DureeResult existant (pas de modification)
+
+DEV 2
+Branche 1 : sprint4/2/enhanced_assignation_service
+--------------------------------------------------------------------------------
+- Model :
+   -> Conserver les models existants (Assignation, Vehicule, Reservation)
+   -> Modifier Assignation :
+      -> Ajouter champ : int idTrajet (nullable, pour lier au trajet)
+      -> Ajouter getter/setter
+
+- Util :
+   -> GroupeVol (nouvelle classe utilitaire)
+      -> LocalDateTime heureArrivee    // Heure d'arrivée du vol (commune à tous)
+      -> List<Reservation> reservations // Réservations de ce vol, triées par nbPassager DESC
+
+   -> Modifier AssignationResult :
+      -> Ajouter champ : List<Trajet> trajets
+      -> Ajouter getter/setter
+      // Pour afficher les détails des trajets (véhicule, étapes, horaires)
+
+- Service :
+   -> GroupingService (nouveau)
+      -> List<GroupeVol> grouperParVol(List<Reservation> reservations)
+         Pour
+            Trier les réservations par DateHeureArrive ASC
+
+            groupes = nouvelle liste vide
+
+            Pour chaque reservation R :
+               Chercher dans groupes un GroupeVol avec heureArrivee == R.DateHeureArrive
+               // Comparaison exacte : même date, même heure, même minute
+               Si trouvé :
+                  -> Ajouter R dans ce groupe
+               Sinon :
+                  -> Créer nouveau GroupeVol
+                     heureArrivee = R.DateHeureArrive
+                  -> Ajouter R
+                  -> Ajouter à groupes
+
+            Pour chaque groupe :
+               Trier reservations par nbPassager DESC (RG7)
+
+            Retourner groupes
+
+   -> Modifier AssignationService :
+      -> Remplacer la méthode assignerPourDate(LocalDate date) :
+         Pour
+            Si checkAssignationExistsForDate(date) == true
+               throw new IllegalStateException("...")
+
+            BEGIN TRANSACTION
+
+            reservations = ReservationRepository.getReservationsByDate(date)
+            groupes = GroupingService.grouperParVol(reservations)
+
+            Pour chaque GroupeVol groupe :
+               dateDepart = groupe.heureArrivee  // Le véhicule part à l'heure d'arrivée du vol
+
+               // Les réservations sont déjà triées par nbPassager DESC (RG7)
+               Pour chaque Reservation R dans groupe.reservations (non encore assignée) :
+
+                  vehiculesDisponibles = VehiculeRepository.getVehiculesDisponible(
+                     R.nbPassager, dateDepart, dateRetourEstime)
+                  // Note : dateRetourEstime = estimation large pour la requête,
+                  //        sera recalculé précisément après le routage
+
+                  Appliquer priorisation RG1-RG4 sur vehiculesDisponibles
+                  Si aucun véhicule → ajouter R à listeNonAssignee, continuer
+
+                  vehiculeChoisi = véhicule retenu
+
+                  // RG8 : Remplissage optimal
+                  placesRestantes = vehiculeChoisi.nbPlace - R.nbPassager
+                  reservationsDansVehicule = [R]
+                  hotelsDansVehicule = [R.hotel.idHotel]
+
+                  Pour chaque Reservation R2 restante dans groupe (non assignée, R2 != R) :
+                     Si R2.nbPassager <= placesRestantes
+                        -> Ajouter R2 dans reservationsDansVehicule
+                        -> placesRestantes -= R2.nbPassager
+                        -> Ajouter R2.hotel.idHotel dans hotelsDansVehicule (si pas déjà)
+                        -> Marquer R2 comme assignée dans ce tour
+
+                  // RG9 + RG11 : Calculer la route optimale (nearest-first + lexicographique si égalité)
+                  etapes = RouteService.calculerRoute(hotelsDansVehicule)
+                  dureeResult = DureeService.calculerDureeMultiStop(dateDepart, etapes)
+
+                  // Créer le Trajet
+                  trajet = nouveau Trajet(vehiculeChoisi, dateDepart, dureeResult.dateRetour, date)
+                  idTrajet = TrajetRepository.insertTrajet(trajet, connection)
+                  Pour chaque etape : TrajetRepository.insertTrajetEtape(etape, connection)
+
+                  // Créer les Assignations pour chaque réservation du véhicule
+                  Pour chaque Reservation Rx dans reservationsDansVehicule :
+                     assignation = nouvelle Assignation(Rx, vehiculeChoisi, dateDepart,
+                                                        dureeResult.dateRetour, idTrajet)
+                     AssignationRepository.insertAssignation(assignation, connection)
+
+            COMMIT
+            ROLLBACK si erreur
+
+            Retourner AssignationResult(assignations, nonAssignees, trajets)
+
+   -> Modifier VehiculeRepository :
+      -> Modifier getVehiculesDisponible :
+         La vérification de disponibilité doit maintenant checker la table Trajet
+         au lieu de (ou en plus de) la table Assignation
+         Car un véhicule est indisponible pendant toute la durée de son trajet
+
+         SELECT * FROM Vehicule v
+         WHERE v.nb_place >= :nbPassager
+         AND v.id_vehicule NOT IN (
+            SELECT t.id_vehicule FROM Trajet t
+            WHERE NOT (t.date_heure_retour <= :dateDepart OR t.date_heure_depart >= :dateRetour)
+         )
+         ORDER BY v.nb_place ASC,
+                  CASE WHEN v.type_vehicule = 'D' THEN 0 ELSE 1 END,
+                  RANDOM()
+
+Branche 2 : sprint4/2/assignation_controller_v2
+--------------------------------------------------------------------------------
+- Controller :
+   -> Modifier AssignationController
+      -> Chemin existant : /assignation/form (inchangé)
+         - Formulaire date
+
+      -> Chemin existant : /assignation/assigner?date=YYYY-MM-DD (modifier)
+         - Récupérer AssignationResult (qui contient maintenant les trajets)
+         - Passer au JSP : assignations, reservationsNonAssignees, trajets
+
+- Vue :
+   -> Modifier assignation.jsp
+      Afficher les résultats organisés par trajet :
+
+      Section 1 : Résumé
+         - Date choisie
+         - Nombre total de réservations traitées
+         - Nombre de vols (groupes)
+         - Nombre de véhicules utilisés
+         - Nombre de réservations non assignées
+
+      Section 2 : Tableau par Trajet (un bloc par trajet)
+         Pour chaque Trajet :
+            En-tête du trajet :
+               - Véhicule : référence, type (D/E), capacité
+               - Départ aéroport : date_heure_depart
+               - Retour aéroport : date_heure_retour
+
+            Sous-tableau Itinéraire :
+               | Ordre | Étape (Hôtel) | Distance depuis précédent (km) |
+
+            Sous-tableau Réservations assignées :
+               | Réservation | Client | Nb Passagers | Hôtel destination |
+
+      Section 3 : Tableau des réservations non assignées
+         | Réservation | Client | Nb Passagers | Hôtel | Heure Arrivée |
+
+      Section 4 : Message d'erreur si IllegalStateException
