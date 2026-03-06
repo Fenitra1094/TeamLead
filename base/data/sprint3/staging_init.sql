@@ -6,9 +6,9 @@
 
 INSERT INTO staging.Hotel (code, nom) VALUES
 ('AER', 'Aeroport'),
-('SOL', 'Hotel Soleil'),
-('ATL', 'Hotel Atlas'),
-('RIV', 'Hotel Rivage');
+('CLB', 'Colbert'),
+('NOV', 'Novotel'),
+('IBS', 'Ibis');
 
 INSERT INTO staging.reservation (DateHeureArrive, idClient, nbPassager, Id_Hotel) VALUES
 ('2026-03-05 08:00:00', 'CLI-001', 2, (SELECT Id_Hotel FROM staging.Hotel WHERE code = 'CLB')),
