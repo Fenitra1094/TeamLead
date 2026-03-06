@@ -54,26 +54,19 @@ public class AssignationRepository {
     }
 
     /**
-     * Vérifie si une assignation existe déjà pour une date donnée.
+     * Supprime toutes les assignations existantes pour une date donnée (dans une transaction).
      */
-    public boolean existsAssignationForDate(LocalDate date) throws SQLException {
-        String sql = "SELECT COUNT(*) FROM Assignation " +
+    public void deleteAssignationsForDate(LocalDate date, Connection connection) throws SQLException {
+        String sql = "DELETE FROM Assignation " +
                      "WHERE date_heure_depart >= ? AND date_heure_depart < ?";
 
         LocalDateTime debut = date.atStartOfDay();
         LocalDateTime fin = date.plusDays(1).atStartOfDay();
 
-        try (Connection connection = DbConnection.getConnection();
-             PreparedStatement statement = connection.prepareStatement(sql)) {
+        try (PreparedStatement statement = connection.prepareStatement(sql)) {
             statement.setTimestamp(1, Timestamp.valueOf(debut));
             statement.setTimestamp(2, Timestamp.valueOf(fin));
-
-            try (ResultSet rs = statement.executeQuery()) {
-                if (rs.next()) {
-                    return rs.getInt(1) > 0;
-                }
-            }
+            statement.executeUpdate();
         }
-        return false;
     }
 }
