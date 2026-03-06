@@ -9,10 +9,10 @@ INSERT INTO dev.Hotel (code, nom) VALUES
 ('CLB', 'Colbert'),
 ('NOV', 'Novotel'),
 ('IBS', 'Ibis');
+
 INSERT INTO dev.reservation (DateHeureArrive, idClient, nbPassager, Id_Hotel) VALUES
 ('2026-03-05 08:00:00', 'CLI-001', 2, (SELECT Id_Hotel FROM dev.Hotel WHERE code = 'CLB')),
 ('2026-03-05 09:30:00', 'CLI-002', 4, (SELECT Id_Hotel FROM dev.Hotel WHERE code = 'NOV')),
-('2026-03-05 11:00:00', 'CLI-003', 6, (SELECT Id_Hotel FROM dev.Hotel WHERE code = 'AER')),
 ('2026-03-06 10:15:00', 'CLI-004', 3, (SELECT Id_Hotel FROM dev.Hotel WHERE code = 'IBS'));
 
 
