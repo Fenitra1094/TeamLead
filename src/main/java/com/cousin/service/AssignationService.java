@@ -9,7 +9,6 @@ import com.cousin.repository.VehiculeRepository;
 import com.cousin.util.AssignationResult;
 import com.cousin.util.DbConnection;
 import com.cousin.util.DureeResult;
-
 import java.sql.Connection;
 import java.sql.SQLException;
 import java.time.LocalDate;
@@ -30,13 +29,6 @@ public class AssignationService {
     }
 
     /**
-     * Vérifie si une assignation existe déjà pour cette date.
-     */
-    public boolean checkAssignationExistsForDate(LocalDate date) throws SQLException {
-        return assignationRepository.existsAssignationForDate(date);
-    }
-
-    /**
      * Assigne les réservations d'une date donnée aux véhicules disponibles.
      * 
      * Règles de priorisation :
@@ -48,11 +40,6 @@ public class AssignationService {
      * Tout se fait dans une TRANSACTION.
      */
     public AssignationResult assignerPourDate(LocalDate date) throws SQLException {
-        // Vérifier si déjà assigné
-        if (checkAssignationExistsForDate(date)) {
-            throw new IllegalStateException("Une assignation a deja ete effectuee pour cette date");
-        }
-
         List<Assignation> assignations = new ArrayList<>();
         List<Reservation> reservationsNonAssignees = new ArrayList<>();
 
@@ -61,6 +48,9 @@ public class AssignationService {
             connection = DbConnection.getConnection();
             connection.setAutoCommit(false); // BEGIN TRANSACTION
 
+            // Supprimer les anciennes assignations pour cette date (permet de re-traiter)
+            assignationRepository.deleteAssignationsForDate(date, connection);
+
             // Récupérer les réservations du jour
             List<Reservation> reservations = reservationRepository.getReservationsByDate(date, connection);
 
@@ -68,6 +58,12 @@ public class AssignationService {
                 // Calculer la durée aller-retour aéroport <-> hôtel
                 DureeResult dureeResult = dureeService.calculerDuree(
                         r.getDateHeureArrive(), r.getHotel().getIdHotel());
+
+                // Si la durée est <= 0 (distance = 0, hôtel = aéroport), pas besoin de véhicule
+                if (dureeResult.getDureeMinutes() <= 0) {
+                    reservationsNonAssignees.add(r);
+                    continue;
+                }
 
                 // Chercher les véhicules disponibles
                 // La requête SQL applique déjà les RG1-RG4 :
