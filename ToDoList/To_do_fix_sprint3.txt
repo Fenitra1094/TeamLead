@@ -1,10 +1,63 @@
-Fix : database_structure 
-    reset : 
+Fix :
+DEV1 :
+Branche 1 : sprint3/fix/1/database_structure
+   reset.sql : 
         Enlever tous les 'IF EXISTS' de TRUNCAT cause une erreur de syntaxe
         Pas de reset pour les autres schemas
-    dev_init :
+    dev_init.sql :
         Modifier l insertion pour que l on est plus besoin de verifier l'existence d'un id particulier -> insertion plus simple
             exemple :     
                 INSERT INTO dev.reservation (DateHeureArrive, idClient, nbPassager, Id_Hotel) VALUES ('2026-03-05 08:00:00', 'CLI-001', 2, 1); devient 
                 INSERT INTO dev.reservation (DateHeureArrive, idClient, nbPassager, Id_Hotel) VALUES ('2026-03-05 08:00:00', 'CLI-001', 2, (SELECT Id_Hotel FROM dev.Hotel WHERE code = 'AER'));
         Ligne 15 : ';' devrait etre ',' cause erreur de syntaxe et les autres donees ne s'inserent pas
+
+   fix_2_database_structure:
+      Cause : 
+         staging_init.sql :
+            Donnees ne sont pas logique 
+               Hotels declares: `SOL`, `ATL`, `RIV`
+               Distances et Reservation reference: `CLB`, `NOV`, `IBS`
+      Solution :
+         modifier les donnees de la table Hotels
+
+Branche 2 : SPRINT3/fix/1/duree_service 
+   DureeService.java 
+      Methode getIdHotelAeroport() 
+         - Probleme : hotel.getNom().equalsIgnoreCase("Aeroport")
+            - Cause : mety hisy Aeroport 2 na maro na koa hotel hafa Aeroport koa no anarany 
+            - Solution :
+               - HotelRepository asina : Integer findIdByCode(String code) 
+               - DureeService miantso an'ilay fonction ao anatin'ilay hoe int getIdHotelAeroport() -> `code='AER'`
+      Methode calculerDuree()
+         - Probleme 1 : int distance = distanceRepository.getDistance(idAeroport, idHotel);
+            - Cause : mety hisy donnee hoe hitovy idAeroport sy ny idHotel, de lasa mamoka erreur ilay izy satria tsy mi-existe ao anatin'ilay table distance
+            - Solution : int distance = (idAeroport == idHotel) ? 0 : distanceRepository.getDistance(idAeroport, idHotel);
+               -> lasa 0 par defaut ny distance anle toeran mitovy
+               na 
+               manisy condition iray milaza hoe, rehefa idAeroport == idHotel dia tsy raisina 
+         -Probleme 2 : int dureeMinutes = (distance / vm) * 60 * 2;
+            - Cause : le valin'ilay division distance(int) / vm(int) possible decimal fa tsy voatery entier, de izany hoe raha distance < vm lasa 0 ny valiny
+            - Solution : int dureeMinutes = (int) Math.ceil(((double) distance / vm) * 60 * 2);
+
+DEV2 : 
+Branche 1 : sprint3/fix/2/assignation_service
+   - Probleme 1 : logique metier blocage si une assignation de la meme date existe
+      Cause : raha toa ka misy modification kely manjoa amin'iray amin'ireny table ireny dia lasa tsy miova mba hanaraka an'ilay vaovao ilay assignation fa mijanona @ ilay teo aloha
+      Solution : averina traiter-na foana ilay izy na dia efa misy ary 
+         AssignationRepository.java 
+            Ajouter deleteAssignationsForDate(LocalDate date, Connection connection)
+            Supprimer existsAssignationForDate(LocalDate date)
+         AssignationService.java 
+            Methode assignerPourDate
+               Supprimer :
+                  if (checkAssignationExistsForDate(date)) {
+                        throw new IllegalStateException("Une assignation a deja ete effectuee pour cette date");
+                  }
+               
+               Apres le commencement de la transaction (BEGIN TRANSACTION), on appel la nouvelle Methode deleteAssignationsForDate()
+
+   - Probleme 2 : reservation dont la distance = 0 (idAeroport == idHotel), ne devrait pas etre assigne a un vehicule
+      Solution : atao directe any @ reservationsNonAssignees ilay izy (afaka miditra ilay reservation otran zany fa makany amin'ny listeNonAssignee fotsiny)
+         AssignationService.java
+            Methode assignerPourDate
+               Ajouter une condition :  if (dureeResult.getDureeMinutes() <= 0) {reservationsNonAssignees.add(<sa valeur>)}

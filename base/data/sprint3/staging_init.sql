@@ -6,14 +6,15 @@
 
 INSERT INTO staging.Hotel (code, nom) VALUES
 ('AER', 'Aeroport'),
-('SOL', 'Hotel Soleil'),
-('ATL', 'Hotel Atlas'),
-('RIV', 'Hotel Rivage');
+('CLB', 'Colbert'),
+('NOV', 'Novotel'),
+('IBS', 'Ibis');
 
 INSERT INTO staging.reservation (DateHeureArrive, idClient, nbPassager, Id_Hotel) VALUES
-('2026-03-05 08:30:00', 'STG-001', 2, 2),
-('2026-03-05 12:00:00', 'STG-002', 5, 3),
-('2026-03-06 09:00:00', 'STG-003', 3, 4);
+('2026-03-05 08:00:00', 'CLI-001', 2, (SELECT Id_Hotel FROM staging.Hotel WHERE code = 'CLB')),
+('2026-03-05 09:30:00', 'CLI-002', 4, (SELECT Id_Hotel FROM staging.Hotel WHERE code = 'NOV')),
+('2026-03-06 10:15:00', 'CLI-004', 3, (SELECT Id_Hotel FROM staging.Hotel WHERE code = 'IBS'));
+
 
 
 INSERT INTO staging.Vehicule (Reference, nbPlace, TypeVehicule) VALUES

@@ -1,4 +1,4 @@
--- 2026-03-04 : Reinitialisation des donnees pour les schemas dev et staging
+-- 2026-03-04 : Reinitialisation des donnees pour les schemas dev 
 
 TRUNCATE TABLE dev.Assignation RESTART IDENTITY CASCADE;
 TRUNCATE TABLE dev.Distance RESTART IDENTITY CASCADE;
@@ -7,6 +7,3 @@ TRUNCATE TABLE dev.reservation RESTART IDENTITY CASCADE;
 TRUNCATE TABLE dev.Vehicule RESTART IDENTITY CASCADE;
 TRUNCATE TABLE dev.Parametre RESTART IDENTITY CASCADE;
 TRUNCATE TABLE dev.Hotel RESTART IDENTITY CASCADE;
-
-TRUNCATE TABLE staging.reservation RESTART IDENTITY CASCADE;
-TRUNCATE TABLE staging.Hotel RESTART IDENTITY CASCADE;
