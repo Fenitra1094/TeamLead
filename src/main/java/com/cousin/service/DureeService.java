@@ -1,12 +1,10 @@
 package com.cousin.service;
 
-import com.cousin.model.Hotel;
 import com.cousin.repository.DistanceRepository;
 import com.cousin.repository.HotelRepository;
 import com.cousin.util.DureeResult;
 import java.sql.SQLException;
 import java.time.LocalDateTime;
-import java.util.List;
 
 public class DureeService {
     private final DistanceRepository distanceRepository;
@@ -31,14 +29,14 @@ public class DureeService {
         }
 
         int idAeroport = getIdHotelAeroport();
-        int distance = distanceRepository.getDistance(idAeroport, idHotel);
+        int distance = (idAeroport == idHotel) ? 0 : distanceRepository.getDistance(idAeroport, idHotel);
         int vm = parametreService.getVm();
 
         if (vm <= 0) {
             throw new IllegalStateException("Vm doit etre superieur a 0");
         }
 
-        int dureeMinutes = (distance / vm) * 60 * 2;
+        int dureeMinutes = (int) Math.ceil(((double) distance / vm) * 60 * 2);
         LocalDateTime dateDepart = dateArrivee;
         LocalDateTime dateRetour = dateDepart.plusMinutes(dureeMinutes);
 
@@ -46,14 +44,11 @@ public class DureeService {
     }
 
     private int getIdHotelAeroport() throws SQLException {
-        List<Hotel> hotels = hotelRepository.findAll();
-
-        for (Hotel hotel : hotels) {
-            if (hotel.getNom() != null && hotel.getNom().equalsIgnoreCase("Aeroport")) {
-                return hotel.getIdHotel();
-            }
+        Integer idAeroport = hotelRepository.findIdByCode("AER");
+        if (idAeroport != null) {
+            return idAeroport;
         }
 
-        throw new SQLException("Hotel Aeroport introuvable");
+        throw new SQLException("Hotel aeroport introuvable pour code AER");
     }
 }
