@@ -5,7 +5,7 @@ SPRINT 4 - Assignation multi-client par véhicule et routage multi-hôtel
 ROLE :
 Team Lead - ETU 3273
 DEV 1 - ETU XXXX
-DEV 2 - ETU XXXX
+DEV 2 - ETU 3371
 
 Tout sur BackOffice
 
@@ -177,13 +177,27 @@ Branche 1 : sprint4/2/enhanced_assignation_service
 
             Retourner groupes
 
+   -> Modifier AssignationRepository :
+      -> Conserver deleteAssignationsForDate(LocalDate date, Connection conn)
+         // Hérité du fix Sprint 3 : supprime les assignations existantes
+
+   -> Ajouter dans TrajetRepository :
+      -> void deleteTrajetsByDate(LocalDate date, Connection conn)
+         // Supprimer d'abord les TrajetEtape (FK vers Trajet)
+         // Puis supprimer les Trajet pour cette date
+         DELETE FROM TrajetEtape WHERE id_trajet IN
+            (SELECT id_trajet FROM Trajet WHERE date_assignation = ?)
+         DELETE FROM Trajet WHERE date_assignation = ?
+
    -> Modifier AssignationService :
       -> Remplacer la méthode assignerPourDate(LocalDate date) :
          Pour
-            Si checkAssignationExistsForDate(date) == true
-               throw new IllegalStateException("...")
-
             BEGIN TRANSACTION
+
+            // Supprimer les données existantes pour pouvoir retraiter la date
+            // (hérité du fix Sprint 3 : pas de blocage, on supprime et on refait)
+            AssignationRepository.deleteAssignationsForDate(date, connection)
+            TrajetRepository.deleteTrajetsByDate(date, connection)
 
             reservations = ReservationRepository.getReservationsByDate(date)
             groupes = GroupingService.grouperParVol(reservations)
@@ -290,4 +304,7 @@ Branche 2 : sprint4/2/assignation_controller_v2
       Section 3 : Tableau des réservations non assignées
          | Réservation | Client | Nb Passagers | Hôtel | Heure Arrivée |
 
-      Section 4 : Message d'erreur si IllegalStateException
+      Section 4 : Message d'erreur si exception
+         // Note : pas de IllegalStateException pour "déjà assigné"
+         // car on supprime et retraite (fix Sprint 3)
+         // Mais afficher un message d'erreur si exception inattendue
