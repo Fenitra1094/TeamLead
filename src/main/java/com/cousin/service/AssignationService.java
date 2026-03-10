@@ -1,5 +1,14 @@
 package com.cousin.service;
 
+import java.sql.Connection;
+import java.sql.SQLException;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Set;
+
 import com.cousin.model.Assignation;
 import com.cousin.model.Reservation;
 import com.cousin.model.Trajet;
@@ -13,14 +22,6 @@ import com.cousin.util.AssignationResult;
 import com.cousin.util.DbConnection;
 import com.cousin.util.DureeResult;
 import com.cousin.util.GroupeVol;
-import java.sql.Connection;
-import java.sql.SQLException;
-import java.time.LocalDate;
-import java.time.LocalDateTime;
-import java.util.ArrayList;
-import java.util.LinkedHashSet;
-import java.util.List;
-import java.util.Set;
 
 public class AssignationService {
     private final AssignationRepository assignationRepository;
@@ -116,7 +117,7 @@ public class AssignationService {
                         continue;
                     }
 
-                    Trajet trajet = new Trajet(vehiculeChoisi.getIdVehicule(),
+                    Trajet trajet = new Trajet(0, vehiculeChoisi.getIdVehicule(),
                             dateDepart,
                             dureeResult.getDateRetour(),
                             date);
