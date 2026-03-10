@@ -7,7 +7,6 @@ import com.framework.annotation.GetMapping;
 import com.framework.annotation.Param;
 import com.framework.model.ModelView;
 
-import java.sql.SQLException;
 import java.time.LocalDate;
 import java.time.format.DateTimeParseException;
 
@@ -28,7 +27,7 @@ public class AssignationController {
      * /assignation/assigner?date=YYYY-MM-DD
      */
     @GetMapping("/assignation/assigner")
-    public ModelView assigner(@Param("date") String dateStr) throws SQLException {
+    public ModelView assigner(@Param("date") String dateStr) {
         ModelView mv = new ModelView("/WEB-INF/views/assignation.jsp");
 
         // Validation de la date
@@ -50,9 +49,10 @@ public class AssignationController {
             mv.addAttribute("date", date.toString());
             mv.addAttribute("assignations", result.getAssignations());
             mv.addAttribute("reservationsNonAssignees", result.getReservationsNonAssignees());
+            mv.addAttribute("trajets", result.getTrajets());
             mv.addAttribute("message", "Assignation effectuee avec succes pour le " + date);
-        } catch (IllegalStateException e) {
-            mv.addAttribute("error", e.getMessage());
+        } catch (Exception e) {
+            mv.addAttribute("error", "Erreur inattendue lors de l'assignation: " + e.getMessage());
         }
 
         return mv;
