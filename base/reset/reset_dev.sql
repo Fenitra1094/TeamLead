@@ -1,4 +1,4 @@
--- 2026-03-04 : Reinitialisation des donnees pour les schemas dev 
+-- 2026-03-10 : Reinitialisation des donnees pour les schemas dev (ajout Trajet/TrajetEtape)
 
 TRUNCATE TABLE dev.Assignation RESTART IDENTITY CASCADE;
 TRUNCATE TABLE dev.Distance RESTART IDENTITY CASCADE;
@@ -7,3 +7,5 @@ TRUNCATE TABLE dev.reservation RESTART IDENTITY CASCADE;
 TRUNCATE TABLE dev.Vehicule RESTART IDENTITY CASCADE;
 TRUNCATE TABLE dev.Parametre RESTART IDENTITY CASCADE;
 TRUNCATE TABLE dev.Hotel RESTART IDENTITY CASCADE;
+TRUNCATE TABLE dev.Trajet RESTART IDENTITY CASCADE;
+TRUNCATE TABLE dev.TrajetEtape RESTART IDENTITY CASCADE;

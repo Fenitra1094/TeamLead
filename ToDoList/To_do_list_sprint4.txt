@@ -22,7 +22,6 @@ Branche 1 : sprint4/1/database_update
 
    -> TrajetEtape :
       Id_Trajet_Etape SERIAL PK
-      Id_Trajet INT FK REFERENCES Trajet(Id_Trajet)
       Id_Hotel INT FK REFERENCES Hotel(Id_Hotel)
       ordre INT NOT NULL
       distance_depuis_precedent INT NOT NULL
