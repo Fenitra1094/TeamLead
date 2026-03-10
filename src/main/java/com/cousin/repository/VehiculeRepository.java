@@ -1,13 +1,14 @@
 package com.cousin.repository;
 
-import com.cousin.model.Vehicule;
-import com.cousin.util.DbConnection;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.List;
+
+import com.cousin.model.Vehicule;
+import com.cousin.util.DbConnection;
 
 public class VehiculeRepository {
     public void insert(Vehicule vehicule) throws SQLException {
@@ -86,45 +87,16 @@ public class VehiculeRepository {
         return vehicules;
     }
 
-        /**
+    /**
      * Retourne les véhicules disponibles pour un créneau donné.
-     * Conditions : nbPlace >= nbPassager ET pas de chevauchement avec des assignations existantes.
+        * Verification par Trajet (et securite complementaire via Assignation).
      * Trié par : nbPlace ASC, TypeVehicule (D en premier), puis RANDOM.
      */
     public List<Vehicule> getVehiculesDisponible(int nbPassager, 
             java.time.LocalDateTime dateDepart, java.time.LocalDateTime dateRetour) throws SQLException {
-        String sql = "SELECT v.Id_Vehicule, v.Reference, v.nbPlace, v.TypeVehicule " +
-                     "FROM Vehicule v " +
-                     "WHERE v.nbPlace >= ? " +
-                     "AND NOT EXISTS (" +
-                     "    SELECT 1 FROM Assignation a " +
-                     "    WHERE a.Id_Vehicule = v.Id_Vehicule " +
-                     "    AND NOT (a.date_heure_retour <= ? OR a.date_heure_depart >= ?)" +
-                     ") " +
-                     "ORDER BY v.nbPlace ASC, " +
-                     "CASE WHEN v.TypeVehicule = 'D' THEN 0 ELSE 1 END, " +
-                     "RANDOM()";
-
-        List<Vehicule> vehicules = new ArrayList<>();
-
-        try (Connection connection = DbConnection.getConnection();
-             PreparedStatement statement = connection.prepareStatement(sql)) {
-            statement.setInt(1, nbPassager);
-            statement.setTimestamp(2, java.sql.Timestamp.valueOf(dateDepart));
-            statement.setTimestamp(3, java.sql.Timestamp.valueOf(dateRetour));
-
-            try (ResultSet resultSet = statement.executeQuery()) {
-                while (resultSet.next()) {
-                    Vehicule vehicule = new Vehicule();
-                    vehicule.setIdVehicule(resultSet.getInt("Id_Vehicule"));
-                    vehicule.setReference(resultSet.getString("Reference"));
-                    vehicule.setNbPlace(resultSet.getInt("nbPlace"));
-                    vehicule.setTypeVehicule(resultSet.getString("TypeVehicule"));
-                    vehicules.add(vehicule);
-                }
-            }
+        try (Connection connection = DbConnection.getConnection()) {
+            return getVehiculesDisponible(nbPassager, dateDepart, dateRetour, connection);
         }
-        return vehicules;
     }
 
     /**
@@ -134,23 +106,38 @@ public class VehiculeRepository {
             java.time.LocalDateTime dateDepart, java.time.LocalDateTime dateRetour, 
             Connection connection) throws SQLException {
         String sql = "SELECT v.Id_Vehicule, v.Reference, v.nbPlace, v.TypeVehicule " +
-                     "FROM Vehicule v " +
-                     "WHERE v.nbPlace >= ? " +
-                     "AND NOT EXISTS (" +
-                     "    SELECT 1 FROM Assignation a " +
-                     "    WHERE a.Id_Vehicule = v.Id_Vehicule " +
-                     "    AND NOT (a.date_heure_retour <= ? OR a.date_heure_depart >= ?)" +
-                     ") " +
-                     "ORDER BY v.nbPlace ASC, " +
-                     "CASE WHEN v.TypeVehicule = 'D' THEN 0 ELSE 1 END, " +
-                     "RANDOM()";
+                "FROM Vehicule v " +
+                "WHERE v.nbPlace >= ? " +
+                "AND NOT EXISTS (" +
+                "    SELECT 1 FROM Trajet t " +
+                "    WHERE t.Id_Vehicule = v.Id_Vehicule " +
+                "    AND NOT (t.date_heure_retour <= ? OR t.date_heure_depart >= ?)" +
+                ") " +
+                "AND NOT EXISTS (" +
+                "    SELECT 1 FROM Assignation a " +
+                "    WHERE a.Id_Vehicule = v.Id_Vehicule " +
+                "    AND NOT (a.date_heure_retour <= ? OR a.date_heure_depart >= ?)" +
+                ") " +
+                "ORDER BY v.nbPlace ASC, " +
+                "CASE WHEN v.TypeVehicule = 'D' THEN 0 ELSE 1 END, " +
+                "RANDOM()";
 
+        return runVehiculeAvailabilityQuery(connection, sql, nbPassager, dateDepart, dateRetour);
+    }
+
+    private List<Vehicule> runVehiculeAvailabilityQuery(Connection connection,
+                                                        String sql,
+                                                        int nbPassager,
+                                                        java.time.LocalDateTime dateDepart,
+                                                        java.time.LocalDateTime dateRetour) throws SQLException {
         List<Vehicule> vehicules = new ArrayList<>();
 
         try (PreparedStatement statement = connection.prepareStatement(sql)) {
             statement.setInt(1, nbPassager);
             statement.setTimestamp(2, java.sql.Timestamp.valueOf(dateDepart));
             statement.setTimestamp(3, java.sql.Timestamp.valueOf(dateRetour));
+            statement.setTimestamp(4, java.sql.Timestamp.valueOf(dateDepart));
+            statement.setTimestamp(5, java.sql.Timestamp.valueOf(dateRetour));
 
             try (ResultSet resultSet = statement.executeQuery()) {
                 while (resultSet.next()) {
@@ -163,6 +150,7 @@ public class VehiculeRepository {
                 }
             }
         }
+
         return vehicules;
     }
 }
