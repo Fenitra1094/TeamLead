@@ -1,53 +1,38 @@
 package com.cousin.model;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.List;
 
-public class Assignation {
-    private int idAssignation;
-    private int idReservation;
+public class Trajet {
+    private int idTrajet;
     private int idVehicule;
-    private Integer idTrajet; // nullable: lien vers Trajet
     private LocalDateTime dateHeureDepart;
     private LocalDateTime dateHeureRetour;
+    private LocalDate dateAssignation;
 
-    // Objets liés pour l'affichage
-    private Reservation reservation;
+    // objets pour affichage
+    private List<TrajetEtape> etapes;
     private Vehicule vehicule;
 
-    public Assignation() {
+    public Trajet() {
     }
 
-    public Assignation(int idAssignation, int idReservation, int idVehicule,
-                       LocalDateTime dateHeureDepart, LocalDateTime dateHeureRetour) {
-        this.idAssignation = idAssignation;
-        this.idReservation = idReservation;
+    public Trajet(int idTrajet, int idVehicule, LocalDateTime dateHeureDepart,
+                  LocalDateTime dateHeureRetour, LocalDate dateAssignation) {
+        this.idTrajet = idTrajet;
         this.idVehicule = idVehicule;
         this.dateHeureDepart = dateHeureDepart;
         this.dateHeureRetour = dateHeureRetour;
+        this.dateAssignation = dateAssignation;
     }
 
-    public Integer getIdTrajet() {
+    public int getIdTrajet() {
         return idTrajet;
     }
 
-    public void setIdTrajet(Integer idTrajet) {
+    public void setIdTrajet(int idTrajet) {
         this.idTrajet = idTrajet;
-    }
-
-    public int getIdAssignation() {
-        return idAssignation;
-    }
-
-    public void setIdAssignation(int idAssignation) {
-        this.idAssignation = idAssignation;
-    }
-
-    public int getIdReservation() {
-        return idReservation;
-    }
-
-    public void setIdReservation(int idReservation) {
-        this.idReservation = idReservation;
     }
 
     public int getIdVehicule() {
@@ -74,12 +59,20 @@ public class Assignation {
         this.dateHeureRetour = dateHeureRetour;
     }
 
-    public Reservation getReservation() {
-        return reservation;
+    public LocalDate getDateAssignation() {
+        return dateAssignation;
     }
 
-    public void setReservation(Reservation reservation) {
-        this.reservation = reservation;
+    public void setDateAssignation(LocalDate dateAssignation) {
+        this.dateAssignation = dateAssignation;
+    }
+
+    public List<TrajetEtape> getEtapes() {
+        return etapes;
+    }
+
+    public void setEtapes(List<TrajetEtape> etapes) {
+        this.etapes = etapes;
     }
 
     public Vehicule getVehicule() {
