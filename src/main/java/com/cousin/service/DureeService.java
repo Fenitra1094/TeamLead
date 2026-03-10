@@ -43,6 +43,29 @@ public class DureeService {
         return new DureeResult(dateDepart, dateRetour, dureeMinutes);
     }
 
+    public DureeResult calculerDureeMultiStop(LocalDateTime dateDepart, java.util.List<com.cousin.model.TrajetEtape> etapes) throws SQLException {
+        if (dateDepart == null) {
+            throw new IllegalArgumentException("dateDepart est obligatoire");
+        }
+
+        int distanceTotale = 0;
+        if (etapes != null) {
+            for (com.cousin.model.TrajetEtape e : etapes) {
+                distanceTotale += e.getDistanceDepuisPrecedent();
+            }
+        }
+
+        int vm = parametreService.getVm();
+        if (vm <= 0) {
+            throw new IllegalStateException("Vm doit etre superieur a 0");
+        }
+
+        int dureeMinutes = (int) Math.ceil(((double) distanceTotale / vm) * 60);
+        java.time.LocalDateTime dateRetour = dateDepart.plusMinutes(dureeMinutes);
+
+        return new DureeResult(dateDepart, dateRetour, dureeMinutes);
+    }
+
     private int getIdHotelAeroport() throws SQLException {
         Integer idAeroport = hotelRepository.findIdByCode("AER");
         if (idAeroport != null) {

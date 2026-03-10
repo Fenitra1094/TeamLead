@@ -6,7 +6,11 @@ public class Assignation {
     private int idAssignation;
     private int idReservation;
     private int idVehicule;
+
+    private Integer idTrajet; // nullable: lien vers Trajet
+
     private Integer idTrajet;
+
     private LocalDateTime dateHeureDepart;
     private LocalDateTime dateHeureRetour;
 
@@ -25,6 +29,14 @@ public class Assignation {
         this.idTrajet = idTrajet;
         this.dateHeureDepart = dateHeureDepart;
         this.dateHeureRetour = dateHeureRetour;
+    }
+
+    public Integer getIdTrajet() {
+        return idTrajet;
+    }
+
+    public void setIdTrajet(Integer idTrajet) {
+        this.idTrajet = idTrajet;
     }
 
     public int getIdAssignation() {

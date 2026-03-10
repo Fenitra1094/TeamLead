@@ -26,7 +26,15 @@ public class AssignationRepository {
             statement.setInt(2, assignation.getIdVehicule());
             statement.setTimestamp(3, Timestamp.valueOf(assignation.getDateHeureDepart()));
             statement.setTimestamp(4, Timestamp.valueOf(assignation.getDateHeureRetour()));
+
+            if (assignation.getIdTrajet() != null) {
+                statement.setInt(5, assignation.getIdTrajet());
+            } else {
+                statement.setNull(5, java.sql.Types.INTEGER);
+            }
+           
             statement.setObject(5, assignation.getIdTrajet(), Types.INTEGER);
+
             statement.executeUpdate();
 
             try (ResultSet keys = statement.getGeneratedKeys()) {
