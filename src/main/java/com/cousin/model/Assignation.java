@@ -6,6 +6,7 @@ public class Assignation {
     private int idAssignation;
     private int idReservation;
     private int idVehicule;
+    private Integer idTrajet;
     private LocalDateTime dateHeureDepart;
     private LocalDateTime dateHeureRetour;
 
@@ -16,11 +17,12 @@ public class Assignation {
     public Assignation() {
     }
 
-    public Assignation(int idAssignation, int idReservation, int idVehicule,
+    public Assignation(int idAssignation, int idReservation, int idVehicule, Integer idTrajet,
                        LocalDateTime dateHeureDepart, LocalDateTime dateHeureRetour) {
         this.idAssignation = idAssignation;
         this.idReservation = idReservation;
         this.idVehicule = idVehicule;
+        this.idTrajet = idTrajet;
         this.dateHeureDepart = dateHeureDepart;
         this.dateHeureRetour = dateHeureRetour;
     }
@@ -47,6 +49,14 @@ public class Assignation {
 
     public void setIdVehicule(int idVehicule) {
         this.idVehicule = idVehicule;
+    }
+
+    public Integer getIdTrajet() {
+        return idTrajet;
+    }
+
+    public void setIdTrajet(Integer idTrajet) {
+        this.idTrajet = idTrajet;
     }
 
     public LocalDateTime getDateHeureDepart() {
