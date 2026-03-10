@@ -18,6 +18,13 @@ public class AssignationResult {
         this.reservationsNonAssignees = reservationsNonAssignees;
     }
 
+    public AssignationResult(List<Assignation> assignations, List<Reservation> reservationsNonAssignees,
+                             List<Trajet> trajets) {
+        this.assignations = assignations;
+        this.reservationsNonAssignees = reservationsNonAssignees;
+        this.trajets = trajets;
+    }
+
     public List<Assignation> getAssignations() {
         return assignations;
     }

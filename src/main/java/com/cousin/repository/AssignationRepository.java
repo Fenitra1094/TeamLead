@@ -1,9 +1,16 @@
 package com.cousin.repository;
 
-import com.cousin.model.Assignation;
-import java.sql.*;
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.sql.Statement;
+import java.sql.Timestamp;
+import java.sql.Types;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+
+import com.cousin.model.Assignation;
 
 public class AssignationRepository {
 
@@ -19,11 +26,15 @@ public class AssignationRepository {
             statement.setInt(2, assignation.getIdVehicule());
             statement.setTimestamp(3, Timestamp.valueOf(assignation.getDateHeureDepart()));
             statement.setTimestamp(4, Timestamp.valueOf(assignation.getDateHeureRetour()));
+
             if (assignation.getIdTrajet() != null) {
                 statement.setInt(5, assignation.getIdTrajet());
             } else {
                 statement.setNull(5, java.sql.Types.INTEGER);
             }
+           
+            statement.setObject(5, assignation.getIdTrajet(), Types.INTEGER);
+
             statement.executeUpdate();
 
             try (ResultSet keys = statement.getGeneratedKeys()) {

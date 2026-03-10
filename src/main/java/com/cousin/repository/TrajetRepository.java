@@ -6,6 +6,7 @@ import com.cousin.model.Vehicule;
 import com.cousin.model.Hotel;
 import com.cousin.util.DbConnection;
 import java.sql.Connection;
+import java.sql.Date;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.Statement;
@@ -30,7 +31,7 @@ public class TrajetRepository {
             st.setInt(1, trajet.getIdVehicule());
             st.setTimestamp(2, Timestamp.valueOf(trajet.getDateHeureDepart()));
             st.setTimestamp(3, Timestamp.valueOf(trajet.getDateHeureRetour()));
-            st.setDate(4, java.sql.Date.valueOf(trajet.getDateAssignation()));
+            st.setDate(4, Date.valueOf(trajet.getDateAssignation()));
             st.executeUpdate();
 
             try (ResultSet keys = st.getGeneratedKeys()) {
@@ -67,7 +68,24 @@ public class TrajetRepository {
     }
 
     /**
-     * Retourne la liste des trajets pour une date donnée avec vehicule et etapes chargées.
+     * Supprime tous les trajets et etapes pour une date donnee (dans une transaction).
+     */
+    public void deleteTrajetsByDate(LocalDate date, Connection connection) throws SQLException {
+        String deleteEtapes = "DELETE FROM TrajetEtape WHERE Id_Trajet IN (SELECT Id_Trajet FROM Trajet WHERE date_assignation = ?)";
+        String deleteTrajets = "DELETE FROM Trajet WHERE date_assignation = ?";
+
+        try (PreparedStatement deleteEtapesStmt = connection.prepareStatement(deleteEtapes);
+             PreparedStatement deleteTrajetsStmt = connection.prepareStatement(deleteTrajets)) {
+            deleteEtapesStmt.setDate(1, Date.valueOf(date));
+            deleteEtapesStmt.executeUpdate();
+
+            deleteTrajetsStmt.setDate(1, Date.valueOf(date));
+            deleteTrajetsStmt.executeUpdate();
+        }
+    }
+
+    /**
+     * Retourne la liste des trajets pour une date donnee avec vehicule et etapes chargees.
      */
     public List<Trajet> findTrajetsByDate(LocalDate date) throws SQLException {
         List<Trajet> trajets = new ArrayList<>();
@@ -77,10 +95,9 @@ public class TrajetRepository {
 
         try (Connection connection = DbConnection.getConnection();
              PreparedStatement st = connection.prepareStatement(sql)) {
-            st.setDate(1, java.sql.Date.valueOf(date));
+            st.setDate(1, Date.valueOf(date));
 
             try (ResultSet rs = st.executeQuery()) {
-                // preload hotels map for name lookup
                 HotelRepository hrepo = new HotelRepository();
                 Map<Integer, Hotel> hotelMap = new HashMap<>();
                 for (Hotel h : hrepo.findAll()) {
@@ -100,15 +117,13 @@ public class TrajetRepository {
                     java.sql.Date dassign = rs.getDate("date_assignation");
                     if (dassign != null) t.setDateAssignation(dassign.toLocalDate());
 
-                    // charger vehicule
                     try {
                         Vehicule v = vrepo.findById(t.getIdVehicule());
                         t.setVehicule(v);
                     } catch (Exception ex) {
-                        // ignore, leave vehicule null
+                        // ignore
                     }
 
-                    // charger etapes
                     List<TrajetEtape> etapes = new ArrayList<>();
                     String sqlEt = "SELECT Id_Trajet_Etape, Id_Hotel, ordre, distance_depuis_precedent " +
                                    "FROM TrajetEtape WHERE Id_Trajet = ? ORDER BY ordre";
