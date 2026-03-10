@@ -44,15 +44,7 @@ public class AssignationService {
     /**
      * Point d'entree principal en mode Sprint 4 only.
      */
-    // public AssignationResult assignerPourDate(LocalDate date) throws SQLException {
-    //     return assignerPourDateV2(date);
-    // }
-
-    /**
-     * Logique Sprint 4 (DEV2 branche 1): grouping par vol, remplissage optimal,
-     * creation de Trajet/TrajetEtape, puis assignations liees au trajet.
-     */
-    private AssignationResult assignerPourDate(LocalDate date) throws SQLException {
+    public AssignationResult assignerPourDate(LocalDate date) throws SQLException {
         List<Assignation> assignations = new ArrayList<>();
         List<Reservation> reservationsNonAssignees = new ArrayList<>();
         List<Trajet> trajets = new ArrayList<>();
