@@ -157,15 +157,17 @@
 <% if (dateChoisie != null) { %>
     <h3>Section 2 - Tableau par Trajet</h3>
 
-    <% if (!trajets.isEmpty()) { %>
-        <% for (Object trajetObj : trajets) {
+    <% if (!trajets.isEmpty()) { 
+        int numeroTrajet = 0;
+         for (Object trajetObj : trajets) {
+            numeroTrajet++;
             Integer idTrajet = toInteger(invokeGetter(trajetObj, "getIdTrajet"));
             Object vehiculeObj = invokeGetter(trajetObj, "getVehicule");
             Object etapesObj = invokeGetter(trajetObj, "getEtapes");
             List<?> etapes = asList(etapesObj);
         %>
             <div class="card">
-                <h4>Trajet <%= safe(idTrajet) %></h4>
+                <h4>Trajet <%= numeroTrajet %></h4>
                 <p class="meta">
                     <strong>Vehicule:</strong>
                     <%= safe(invokeGetter(vehiculeObj, "getReference")) %>
