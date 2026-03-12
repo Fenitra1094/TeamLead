@@ -28,11 +28,23 @@ INSERT INTO staging.Distance (from_hotel, to_hotel, km) VALUES
 ((SELECT Id_Hotel FROM staging.Hotel WHERE code = 'AER'), (SELECT Id_Hotel FROM staging.Hotel WHERE code = 'NOV'), 18),
 ((SELECT Id_Hotel FROM staging.Hotel WHERE code = 'AER'), (SELECT Id_Hotel FROM staging.Hotel WHERE code = 'HBS'), 25),
 ((SELECT Id_Hotel FROM staging.Hotel WHERE code = 'AER'), (SELECT Id_Hotel FROM staging.Hotel WHERE code = 'PAN'), 15),
+((SELECT Id_Hotel FROM staging.Hotel WHERE code = 'AER'), (SELECT Id_Hotel FROM staging.Hotel WHERE code = 'IBS'), 21),
 ((SELECT Id_Hotel FROM staging.Hotel WHERE code = 'AER'), (SELECT Id_Hotel FROM staging.Hotel WHERE code = 'PCH'), 15),
 ((SELECT Id_Hotel FROM staging.Hotel WHERE code = 'PAN'), (SELECT Id_Hotel FROM staging.Hotel WHERE code = 'PCH'), 5),
 ((SELECT Id_Hotel FROM staging.Hotel WHERE code = 'PAN'), (SELECT Id_Hotel FROM staging.Hotel WHERE code = 'CLB'), 20),
+((SELECT Id_Hotel FROM staging.Hotel WHERE code = 'PAN'), (SELECT Id_Hotel FROM staging.Hotel WHERE code = 'NOV'), 3),
+((SELECT Id_Hotel FROM staging.Hotel WHERE code = 'PAN'), (SELECT Id_Hotel FROM staging.Hotel WHERE code = 'IBS'), 14),
+((SELECT Id_Hotel FROM staging.Hotel WHERE code = 'PAN'), (SELECT Id_Hotel FROM staging.Hotel WHERE code = 'HBS'), 10),
 ((SELECT Id_Hotel FROM staging.Hotel WHERE code = 'CLB'), (SELECT Id_Hotel FROM staging.Hotel WHERE code = 'HBS'), 8),
-((SELECT Id_Hotel FROM staging.Hotel WHERE code = 'CLB'), (SELECT Id_Hotel FROM staging.Hotel WHERE code = 'PAN'), 20);
+((SELECT Id_Hotel FROM staging.Hotel WHERE code = 'CLB'), (SELECT Id_Hotel FROM staging.Hotel WHERE code = 'PCH'), 11),
+((SELECT Id_Hotel FROM staging.Hotel WHERE code = 'CLB'), (SELECT Id_Hotel FROM staging.Hotel WHERE code = 'NOV'), 16),
+((SELECT Id_Hotel FROM staging.Hotel WHERE code = 'CLB'), (SELECT Id_Hotel FROM staging.Hotel WHERE code = 'IBS'), 5),
+((SELECT Id_Hotel FROM staging.Hotel WHERE code = 'NOV'), (SELECT Id_Hotel FROM staging.Hotel WHERE code = 'HBS'), 7),
+((SELECT Id_Hotel FROM staging.Hotel WHERE code = 'NOV'), (SELECT Id_Hotel FROM staging.Hotel WHERE code = 'PCH'), 9),
+((SELECT Id_Hotel FROM staging.Hotel WHERE code = 'NOV'), (SELECT Id_Hotel FROM staging.Hotel WHERE code = 'IBS'), 6),
+((SELECT Id_Hotel FROM staging.Hotel WHERE code = 'HBS'), (SELECT Id_Hotel FROM staging.Hotel WHERE code = 'PCH'), 4),
+((SELECT Id_Hotel FROM staging.Hotel WHERE code = 'HBS'), (SELECT Id_Hotel FROM staging.Hotel WHERE code = 'IBS'), 12),
+((SELECT Id_Hotel FROM staging.Hotel WHERE code = 'PCH'), (SELECT Id_Hotel FROM staging.Hotel WHERE code = 'IBS'), 8);
 
 -- Reservations : same date, multiple vols/times to test grouping and routing
 INSERT INTO staging.reservation (DateHeureArrive, idClient, nbPassager, Id_Hotel) VALUES
