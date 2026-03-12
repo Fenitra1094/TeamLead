@@ -1,0 +1,22 @@
+# WAR généré
+*.war
+
+# Dossier build
+build/
+
+# Fichiers IDE
+.idea/
+*.iml
+.vscode/
+.settings/
+.project
+.classpath
+*.swp
+*~
+
+# Fichiers OS
+Thumbs.db
+.DS_Store
+
+# Logs
+*.log

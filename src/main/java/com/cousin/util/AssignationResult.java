@@ -1,0 +1,51 @@
+package com.cousin.util;
+
+import com.cousin.model.Assignation;
+import com.cousin.model.Reservation;
+import com.cousin.model.Trajet;
+import java.util.List;
+
+public class AssignationResult {
+    private List<Assignation> assignations;
+    private List<Reservation> reservationsNonAssignees;
+    private List<Trajet> trajets;
+
+    public AssignationResult() {
+    }
+
+    public AssignationResult(List<Assignation> assignations, List<Reservation> reservationsNonAssignees) {
+        this.assignations = assignations;
+        this.reservationsNonAssignees = reservationsNonAssignees;
+    }
+
+    public AssignationResult(List<Assignation> assignations, List<Reservation> reservationsNonAssignees,
+                             List<Trajet> trajets) {
+        this.assignations = assignations;
+        this.reservationsNonAssignees = reservationsNonAssignees;
+        this.trajets = trajets;
+    }
+
+    public List<Assignation> getAssignations() {
+        return assignations;
+    }
+
+    public void setAssignations(List<Assignation> assignations) {
+        this.assignations = assignations;
+    }
+
+    public List<Reservation> getReservationsNonAssignees() {
+        return reservationsNonAssignees;
+    }
+
+    public void setReservationsNonAssignees(List<Reservation> reservationsNonAssignees) {
+        this.reservationsNonAssignees = reservationsNonAssignees;
+    }
+
+    public List<Trajet> getTrajets() {
+        return trajets;
+    }
+
+    public void setTrajets(List<Trajet> trajets) {
+        this.trajets = trajets;
+    }
+}
