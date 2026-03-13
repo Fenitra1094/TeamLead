@@ -6,7 +6,7 @@ ROLE :
 Team Lead - ETU 3265
 
 DEV 1 - ETU xxxx
-DEV 2 - ETU xxxx
+DEV 2 - ETU 3371
 
 Tout sur BackOffice
 
