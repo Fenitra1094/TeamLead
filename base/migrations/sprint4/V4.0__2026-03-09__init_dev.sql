@@ -1,7 +1,7 @@
 -- Migration V4.0 - 2026-03-09 - init dev: Trajet and TrajetEtape
 CREATE TABLE IF NOT EXISTS dev.Trajet (
     id_trajet SERIAL PRIMARY KEY,
-    id_vehicule INT NOT NULL REFERENCES Vehicule(id_vehicule),
+    id_vehicule INT NOT NULL REFERENCES dev.Vehicule(id_vehicule),
     date_heure_depart TIMESTAMP NOT NULL,
     date_heure_retour TIMESTAMP NOT NULL,
     date_assignation DATE NOT NULL
@@ -9,8 +9,8 @@ CREATE TABLE IF NOT EXISTS dev.Trajet (
 
 CREATE TABLE IF NOT EXISTS dev.TrajetEtape (
     id_trajet_etape SERIAL PRIMARY KEY,
-    id_trajet INT NOT NULL REFERENCES Trajet(id_trajet) ON DELETE CASCADE,
-    id_hotel INT NOT NULL REFERENCES Hotel(id_hotel),
+    id_trajet INT NOT NULL REFERENCES dev.Trajet(id_trajet) ON DELETE CASCADE,
+    id_hotel INT NOT NULL REFERENCES dev.Hotel(id_hotel),
     ordre INT NOT NULL,
     distance_depuis_precedent INT NOT NULL
 );

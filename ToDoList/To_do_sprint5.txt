@@ -1,0 +1,306 @@
+================================================================================
+SPRINT 5 - Regroupement client / reservation (Temps d'Attente)
+================================================================================
+
+ROLE :
+Team Lead - ETU 3273
+
+DEV 1 - ETU 3265
+DEV 2 - ETU 3371
+
+Tout sur BackOffice
+
+OBJECTIF
+- Implémenter regroupement temporel "temps d'attente" (30 min par défaut)
+- Traiter plusieurs réservations proches (H à H+30min) comme un seul groupe de départ
+- tous les véhicules d'un groupe départ à la même heure = max(DateHeureArrive du groupe)
+
+RÈGLES MÉTIER
+- Temps d'attente : 30 minutes (H à H + 30min) => regroupe réservations
+- Heure de départ groupe = max(DateHeureArrive) du groupe
+- Remplissage optimal : ordre nbPassager DESC (RG7)
+- Si plusieurs véhicules du même groupe => TOUS partent à même heure
+- Conserver priorités Sprint 3/4 : diesel preferred, random tie-break, RG1..RG11
+
+================================================================================
+DEV 1
+Branche 1 : sprint5/1/database_config
+--------------------------------------------------------------------------------
+- Scripts de seed : créer `base/data/sprint5/init_dev.sql` et `init_staging.sql`
+  Copier structure Sprint 4 complète et ajouter :
+  
+  - Paramètre temps_attente :
+    INSERT INTO staging.Parametre (code, valeur, unite, typeValeur) 
+      VALUES ('temps_attente', '30', 'minutes', 'Integer');
+  
+  - Réservations de test (dates 2026-03-20) :
+    * 04:20:00 - 7 passagers - Colbert
+    * 04:45:00 - 4 passagers - Novotel
+    * 04:45:00 - 2 passagers - Hibiscus
+    * 04:47:00 - 1 passager - Panache
+    => Fenêtre 04:20 + 30min = 04:50 => groupe [04:20, 04:45, 04:45, 04:47]
+    => heureDepartGroupe = 04:47 (max)
+  
+  - Mise à jour `base/reset/reset_dev.sql` et `reset_staging.sql` (date changement)
+
+================================================================================
+DEV 1
+Branche 2 : sprint5/1/parametre_service
+--------------------------------------------------------------------------------
+- Ajouter méthode `ParametreService.getTempsAttente()` :
+  
+  public int getTempsAttente() throws SQLException
+    - Récupère paramètre "temps_attente" via ParametreRepository
+    - Si absent => retourne 30
+    - Parse en int, retourne
+    - Lève SQLException si valeur invalide
+
+================================================================================
+DEV 1
+Branche 3 : sprint5/1/assignation_ui
+--------------------------------------------------------------------------------
+- Modifier `AssignationController.assigner()` :
+  
+  public ModelView assigner(@Param("date") String dateStr, @Param("tempsAttente") String tempsAttenteStr)
+    - Parser date (YYYY-MM-DD)
+    - Parser tempsAttente (default 30 si absent/invalide)
+    - Appeler AssignationService.assignerPourDate(date, tempsAttenteMinutes)
+    - Récupérer reservationsNonAssignees depuis résultat
+    - Construire ModelView avec attributs:
+      * "groupes" : List<GroupeTemps>
+      * "reservationsNonAssignees" : List<Reservation>
+    - Retourner vue "assignation_result"
+
+- Modifier JSP `assignation.jsp` (form GET `/assignation/form`) :
+  
+  Form de saisie :
+    <input type="date" name="date" required />
+    <input type="number" name="tempsAttente" value="30" min="1" max="180" />
+    <button type="submit">Assigner</button>
+  
+  Affichage résultats (GroupeTemps) :
+    <h2>Groupes de départ (Temps d'attente)</h2>
+    <c:forEach var="groupe" items="${groupes}">
+      <div class="groupe">
+        <h3>Groupe @ ${groupe.heureDepartGroupe}</h3>
+        <p>Temps d'attente : ${groupe.tempsAttenteMinutes} min</p>
+        <table>
+          <tr><th>Réservation</th><th>Hotel</th><th>Passagers</th></tr>
+          <c:forEach var="r" items="${groupe.reservations}">
+            <tr>
+              <td>${r.idReservation}</td>
+              <td>${r.hotelArrivee}</td>
+              <td>${r.nbPassager}</td>
+            </tr>
+          </c:forEach>
+        </table>
+      </div>
+    </c:forEach>
+  
+  Affichage réservations non assignées (Sprint 4 oubliée) :
+    <c:if test="${reservationsNonAssignees.size() > 0}">
+      <h3>⚠️ Réservations non assignées (${reservationsNonAssignees.size()})</h3>
+      <table>
+        <tr>
+          <th>ID Réservation</th>
+          <th>Hotel</th>
+          <th>Nb Passagers</th>
+          <th>Date/Heure Arrivée</th>
+          <th>Raison</th>
+        </tr>
+        <c:forEach var="r" items="${reservationsNonAssignees}">
+          <tr>
+            <td>${r.idReservation}</td>
+            <td>${r.hotelArrivee}</td>
+            <td>${r.nbPassager}</td>
+            <td>${r.dateHeureArrive}</td>
+            <td>Pas de véhicule disponible</td>
+          </tr>
+        </c:forEach>
+      </table>
+    </c:if>
+VOUS ETES RESPONSABLE DE FAIRE NOTRE CSS 
+    -Ajoute une barre de menu contenu
+        assignation
+            .assignationForm
+        reservation
+        vehicule 
+    -Pour chaque page ajoute de css plus professionnel (avec barre de menu toujours present)
+    -notre theme est gris , 
+================================================================================
+DEV 2
+Branche 1 : sprint5/2/grouping_service_wait_time
+--------------------------------------------------------------------------------
+ dans Util
+ - Créer classe `GroupeTemps` :
+  
+  public class GroupeTemps {
+    private LocalDateTime heureDepartGroupe;  // max(DateHeureArrive)
+    private int tempsAttenteMinutes;
+    private List<Reservation> reservations;   // triées DESC par nbPassager
+    
+    // getter/setter
+  }
+
+dans Service
+- Ajouter méthode `GroupingService.grouperParTempsAttente()` :
+  
+  Signature :
+    public List<GroupeTemps> grouperParTempsAttente(List<Reservation> reservations, int tempsAttenteMinutes)
+  
+  Paramètres :
+    - reservations : liste des réservations à regrouper
+    - tempsAttenteMinutes : fenêtre temporelle (ex. 30 minutes)
+  
+  Rôle :
+    Regroupe les réservations en fenêtres temporelles de "temps d'attente".
+    Toutes les réservations d'un groupe partent à la même heure = max du groupe.
+  
+  Algorithme :
+    1. Retourner liste vide si reservations null ou vide
+    
+    2. Trier reservations par DateHeureArrive ASC
+    3. groupes = liste vide
+    4. traites = Set<Integer> (ids réservations traitées)
+    
+    5. Pour chaque Reservation R non-traitée (ordre ASC) :
+       - dateR = R.DateHeureArrive
+       - fenetre_fin = dateR + tempsAttenteMinutes (ex. 4h20 + 30min = 4h50)
+       - groupe_reservations = [R]
+       - groupe_max_heure = dateR
+       - Marquer R comme traitée
+       
+       6. Pour chaque Reservation R2 non-traitée (ordre ASC) :
+          Si R2.DateHeureArrive <= fenetre_fin :  // INCLUS si égal ou avant limite
+            - Ajouter R2 à groupe_reservations
+            - groupe_max_heure = max(groupe_max_heure, R2.DateHeureArrive)
+            - Marquer R2 comme traitée
+       
+       7. Trier groupe_reservations par nbPassager DESC
+          (Hérité Sprint 4 : prépare l'ordre de remplissage optimal pour AssignationService)
+       
+       8. Créer GroupeTemps :
+          - heureDepartGroupe = groupe_max_heure
+          - tempsAttenteMinutes = paramètre
+          - reservations = groupe_reservations triées
+       
+       9. Ajouter GroupeTemps à groupes
+    
+    10. Retourner groupes
+
+  Exemple concret (temps_attente = 30min) :
+    Réservations : 4h20 (7p), 4h45 (4p), 4h45 (2p), 4h47 (1p)
+    
+    GROUPE 1 (pivot 4h20) :
+      fenetre = 4h20 + 30min = 4h50
+      - 4h20 <= 4h50 ✓ incluse
+      - 4h45 <= 4h50 ✓ incluse
+      - 4h45 <= 4h50 ✓ incluse
+      - 4h47 <= 4h50 ✓ incluse
+      groupe_max_heure = 4h47
+      => GroupeTemps @ 4h47 : [7, 4, 2, 1] (DESC par nbPassager)
+    
+    Résultat : 1 groupe, tous les véhicules départ = 4h47
+
+- Tests unitaires `GroupingServiceTest` :
+  - Cas 1 : Groupement fenêtre 30 minutes (4 réservations => 1 groupe)
+  - Cas 2 : Tri DESC par nbPassager au sein groupe
+  - Cas 3 : Singleton (pas d'autres réservations dans fenêtre)
+  - Cas 4 : Frontière exacte (R @ 4h50 incluse si fenetre_fin = 4h50)
+  - Cas 5 : Plusieurs groupes (réservations >30min écartées)
+
+================================================================================
+DEV 2
+Branche 2 : sprint5/2/assignation_service_wait_time
+--------------------------------------------------------------------------------
+- Adapter `AssignationService.assignerPourDate(LocalDate date)` :
+  
+  Remplacer :
+    List<GroupeVol> groupes = groupingService.grouperParVol(reservations);
+  
+  Par :
+    int tempsAttenteMinutes = parametreService.getTempsAttente();
+    List<GroupeTemps> groupes = groupingService.grouperParTempsAttente(
+      reservations, tempsAttenteMinutes);
+  
+  Pour chaque GroupeTemps groupe :
+    - dateDepart = groupe.getHeureDepartGroupe()  // max(DateHeureArrive)
+    - reservationsGroupe = groupe.getReservations()  // déjà triées DESC par nbPassager
+    
+    - Appliquer logique assignation existante (Sprint 4, boucle while) :
+      * Pour chaque R pivot du groupe :
+        - Chercher vehiculesDisponibles(R.nbPassager, dateDepart, ...)
+        - Remplir autres R du groupe
+        - Créer Trajet(dateDepart = heureDepartGroupe)
+        - Créer Assignations avec dateDepart = heureDepartGroupe
+  
+  GARANTIR : tous véhicules du même groupe ont Trajet.dateDepart = heureDepartGroupe
+
+- Tests intégration `AssignationServiceIntegrationTest` :
+  - Scenario 4 réservations => 1 groupe
+  - Vérifier dateDepart synchronisé dans tous Trajet+Assignation du groupe
+  - Vérifier tri nbPassager DESC
+
+
+
+================================================================================
+TESTS & DATA
+--------------------------------------------------------------------------------
+- Seed data `base/data/sprint5/init_staging.sql` :
+  - Réservations test :
+    2026-03-20 04:20:00 - 7 pers - Colbert
+    2026-03-20 04:45:00 - 4 pers - Novotel
+    2026-03-20 04:45:00 - 2 pers - Hibiscus
+    2026-03-20 04:47:00 - 1 pers - Panache
+  
+  - Résultat attendu :
+    => 1 groupe [4h20, 4h45, 4h45, 4h47], heureDepartGroupe = 4h47
+    => Tri DESC par passagers : [7, 4, 2, 1]
+
+- Tests unitaires : GroupingServiceTest (3 cas)
+- Tests intégration : AssignationServiceIntegrationTest (synchronisation dateDepart)
+
+================================================================================
+DOCS & LIVRAISON
+--------------------------------------------------------------------------------
+- Mettre à jour README :
+  - Concept temps d'attente => fenêtre H à H+30min
+  - Exemple : 4h20 + 30min = 4h50 fenêtre => groupe [4h20, 4h45, 4h47]
+  - heureDepartGroupe = max = 4h47
+  - Tous véhicules du groupe partent 4h47
+
+- Code review, QA
+
+
+CLEANING
+    .Uniformisation pour chaque colonne
+    .valeur tsy misy :na esorina , na soloina 
+        temps d'ouverture:tokony misy valeur calculena
+        
+    .date_ouverture n'est pas encore un format de date , 
+        verifiena le type
+
+    .atambatra izay mitovitovy
+
+    .rehefa misy valeur maquante:
+        inona ny valeur null/tsia 
+        firy ny null
+        raisina min ou max/med,moyen 
+        esorina raha tsy important 
+        tsy mahazo raha 40% moyen de donnees no very 
+        completer ho false izay tsy misy valeur
+            =>jerena @zay ny moyen lasa 0 
+        temps d'ouverture :na moyen na mediane satria tsy mahazo atao 0 
+
+        mediane:fizarana roa 
+        moyen: somme(tous)/nb
+    
+    .esorina ny doublon
+        misafidy tsara izay esorina 
+
+        ao @powerBI 
+        rehefa vita madio de atao @exclure
+        
+        azavaina oe fa maninona no esorina/ novaina(false ny tsy misy)/ calcul moyen 
+
+
