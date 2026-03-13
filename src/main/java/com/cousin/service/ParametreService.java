@@ -27,4 +27,18 @@ public class ParametreService {
             throw new SQLException("Valeur Vm invalide: " + valeurVm, e);
         }
     }
+
+    public int getTempsAttente() throws SQLException {
+        String valeur = parametreRepository.getValeurByCode("temps_attente");
+
+        if (valeur == null || valeur.isBlank()) {
+            return 30; // valeur par defaut
+        }
+
+        try {
+            return Integer.parseInt(valeur);
+        } catch (NumberFormatException e) {
+            throw new SQLException("Valeur temps_attente invalide: " + valeur, e);
+        }
+    }
 }
