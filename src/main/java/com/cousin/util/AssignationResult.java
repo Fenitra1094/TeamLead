@@ -48,4 +48,5 @@ public class AssignationResult {
     public void setTrajets(List<Trajet> trajets) {
         this.trajets = trajets;
     }
+
 }
