@@ -12,6 +12,7 @@ import com.cousin.repository.VehiculeRepository;
 import com.cousin.util.AssignationResult;
 import com.cousin.util.DbConnection;
 import com.cousin.util.DureeResult;
+import com.cousin.util.GroupeTemps;
 import com.cousin.util.GroupeVol;
 import java.sql.Connection;
 import java.sql.SQLException;
@@ -46,10 +47,11 @@ public class AssignationService {
     /**
      * Point d'entree principal en mode Sprint 4 only.
      */
-    public AssignationResult assignerPourDate(LocalDate date) throws SQLException {
+    public AssignationResult assignerPourDate(LocalDate date, int tempsAttenteMinutes) throws SQLException {
         List<Assignation> assignations = new ArrayList<>();
         List<Reservation> reservationsNonAssignees = new ArrayList<>();
         List<Trajet> trajets = new ArrayList<>();
+        List<GroupeTemps> groupes = new ArrayList<>();
 
         try (Connection connection = DbConnection.getConnection()) {
             connection.setAutoCommit(false); // BEGIN TRANSACTION
@@ -60,8 +62,7 @@ public class AssignationService {
                 trajetRepository.deleteTrajetsByDate(date, connection);
 
                 List<Reservation> reservations = reservationRepository.getReservationsByDate(date, connection);
-                int tempsAttenteMinutes = parametreService.getTempsAttente();
-                List<GroupeTemps> groupes = groupingService.grouperParTempsAttente(reservations, tempsAttenteMinutes);
+                groupes = groupingService.grouperParTempsAttente(reservations, tempsAttenteMinutes);
 
                 for (GroupeTemps groupe : groupes) {
                     LocalDateTime dateDepart = groupe.getHeureDepartGroupe();
@@ -161,7 +162,9 @@ public class AssignationService {
             }
         }
 
-        return new AssignationResult(assignations, reservationsNonAssignees, trajets);
+        AssignationResult result = new AssignationResult(assignations, reservationsNonAssignees, trajets);
+        result.setGroupes(groupes);
+        return result;
     }
 
     private LocalDateTime estimerDateRetour(LocalDateTime dateDepart) {

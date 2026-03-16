@@ -7,7 +7,7 @@
 
     <context-param>
         <param-name>db.url</param-name>
-        <param-value>jdbc:postgresql://localhost:5432/reservation_voiture?currentSchema=staging</param-value>
+        <param-value>jdbc:postgresql://localhost:5432/reservation_voiture?currentSchema=dev</param-value>
     </context-param>
     <context-param>
         <param-name>db.user</param-name>
@@ -58,4 +58,16 @@
         <servlet-name>default</servlet-name>
         <url-pattern>/assets/*</url-pattern>
     </servlet-mapping>
+
+    <!-- Déclaration des taglibs JSTL -->
+    <jsp-config>
+        <taglib>
+            <taglib-uri>http://java.sun.com/jsp/jstl/core</taglib-uri>
+            <taglib-location>/WEB-INF/tld/c.tld</taglib-location>
+        </taglib>
+        <taglib>
+            <taglib-uri>http://java.sun.com/jsp/jstl/functions</taglib-uri>
+            <taglib-location>/WEB-INF/tld/fn.tld</taglib-location>
+        </taglib>
+    </jsp-config>
 </web-app>
