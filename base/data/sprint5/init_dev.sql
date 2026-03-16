@@ -1,4 +1,4 @@
--- 2026-03-10 : Initialisation des donnees de test pour sprint4 (dev)
+-- 2026-03-13 : Initialisation des donnees de test pour sprint5 (dev)
 
 INSERT INTO dev.Hotel (code, nom) VALUES
 ('AER', 'Aeroport'),
@@ -20,8 +20,10 @@ INSERT INTO dev.token_expiration (token, expiration) VALUES
 ('6ba7b810-9dad-11d1-80b4-00c04fd430c9', NOW() + INTERVAL '48 hours');
 
 INSERT INTO dev.Parametre (code, valeur, unite, typeValeur) VALUES
-('Vm', '30', 'km', 'Integer');
+('Vm', '30', 'km', 'Integer'),
+('temps_attente', '30', 'minutes', 'Integer');
 
+-- Distances (airport -> hotels and between hotels)
 INSERT INTO dev.Distance (from_hotel, to_hotel, km) VALUES
 ((SELECT Id_Hotel FROM dev.Hotel WHERE code = 'AER'), (SELECT Id_Hotel FROM dev.Hotel WHERE code = 'CLB'), 12),
 ((SELECT Id_Hotel FROM dev.Hotel WHERE code = 'AER'), (SELECT Id_Hotel FROM dev.Hotel WHERE code = 'NOV'), 18),
@@ -45,14 +47,12 @@ INSERT INTO dev.Distance (from_hotel, to_hotel, km) VALUES
 ((SELECT Id_Hotel FROM dev.Hotel WHERE code = 'HBS'), (SELECT Id_Hotel FROM dev.Hotel WHERE code = 'IBS'), 12),
 ((SELECT Id_Hotel FROM dev.Hotel WHERE code = 'PCH'), (SELECT Id_Hotel FROM dev.Hotel WHERE code = 'IBS'), 8);
 
--- Reservations : same date, multiple vols/times to test grouping and routing
+-- Reservations de test Sprint5 (2026-03-20)
+-- Fenetre groupe: 04:20 + 30 min = 04:50
+-- Groupe attendu: [04:20, 04:45, 04:45, 04:47]
+-- heureDepartGroupe attendue: 04:47 (max)
 INSERT INTO dev.reservation (DateHeureArrive, idClient, nbPassager, Id_Hotel) VALUES
-('2026-03-20 09:30:00', 'CLI-001', 11, (SELECT Id_Hotel FROM dev.Hotel WHERE code = 'CLB')),
-('2026-03-20 09:30:00', 'CLI-002', 5, (SELECT Id_Hotel FROM dev.Hotel WHERE code = 'NOV')),
-('2026-03-20 09:30:00', 'CLI-003', 3, (SELECT Id_Hotel FROM dev.Hotel WHERE code = 'HBS')),
-('2026-03-20 14:00:00', 'CLI-004', 8, (SELECT Id_Hotel FROM dev.Hotel WHERE code = 'PAN')),
-('2026-03-20 14:00:00', 'CLI-005', 4, (SELECT Id_Hotel FROM dev.Hotel WHERE code = 'PCH')),
-('2026-03-20 16:45:00', 'CLI-006', 7, (SELECT Id_Hotel FROM dev.Hotel WHERE code = 'CLB')),
-('2026-03-20 16:45:00', 'CLI-007', 2, (SELECT Id_Hotel FROM dev.Hotel WHERE code = 'NOV')),
-('2026-03-20 18:00:00', 'CLI-008', 6, (SELECT Id_Hotel FROM dev.Hotel WHERE code = 'HBS'));
-
+('2026-03-20 04:20:00', 'CLI-S5-001', 7, (SELECT Id_Hotel FROM dev.Hotel WHERE code = 'CLB')),
+('2026-03-20 04:45:00', 'CLI-S5-002', 4, (SELECT Id_Hotel FROM dev.Hotel WHERE code = 'NOV')),
+('2026-03-20 04:45:00', 'CLI-S5-003', 2, (SELECT Id_Hotel FROM dev.Hotel WHERE code = 'HBS')),
+('2026-03-20 04:47:00', 'CLI-S5-004', 1, (SELECT Id_Hotel FROM dev.Hotel WHERE code = 'PAN'));

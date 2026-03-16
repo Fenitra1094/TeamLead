@@ -79,3 +79,4 @@ BO :
 		Si expiree , pas d’acces a l’API
 		Si elle n’est pas expiree, elle a acces a l’API.
 	S’il n’existe pas, il n’a pas d’acces a l’api
+
