@@ -29,16 +29,16 @@ public class ParametreService {
     }
 
     public int getTempsAttente() throws SQLException {
-        String valeurTempsAttente = parametreRepository.getValeurByCode("temps_attente");
+        String valeur = parametreRepository.getValeurByCode("temps_attente");
 
-        if (valeurTempsAttente == null || valeurTempsAttente.isBlank()) {
-            return 30;
+        if (valeur == null || valeur.isBlank()) {
+            return 30; // valeur par defaut
         }
 
         try {
-            return Integer.parseInt(valeurTempsAttente);
+            return Integer.parseInt(valeur);
         } catch (NumberFormatException e) {
-            throw new SQLException("Valeur temps_attente invalide: " + valeurTempsAttente, e);
+            throw new SQLException("Valeur temps_attente invalide: " + valeur, e);
         }
     }
 }
