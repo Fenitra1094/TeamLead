@@ -9,6 +9,7 @@ public class AssignationResult {
     private List<Assignation> assignations;
     private List<Reservation> reservationsNonAssignees;
     private List<Trajet> trajets;
+    private List<GroupeTemps> groupes;
 
     public AssignationResult() {
     }
@@ -47,6 +48,14 @@ public class AssignationResult {
 
     public void setTrajets(List<Trajet> trajets) {
         this.trajets = trajets;
+    }
+
+    public List<GroupeTemps> getGroupes() {
+        return groupes;
+    }
+
+    public void setGroupes(List<GroupeTemps> groupes) {
+        this.groupes = groupes;
     }
 
 }
