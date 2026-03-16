@@ -1,4 +1,4 @@
--- 2026-03-10 : Reinitialisation des donnees pour les schemas dev (ajout Trajet/TrajetEtape)
+-- 2026-03-13 : Reinitialisation des donnees pour les schemas dev (sprint5)
 
 TRUNCATE TABLE dev.Assignation RESTART IDENTITY CASCADE;
 TRUNCATE TABLE dev.Distance RESTART IDENTITY CASCADE;

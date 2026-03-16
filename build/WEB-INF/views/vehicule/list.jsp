@@ -7,24 +7,40 @@
 <head>
     <meta charset="UTF-8">
     <title>Liste Vehicules</title>
+    <link rel="stylesheet" href="<%= request.getContextPath() %>/assets/css/theme-gray.css">
 </head>
 <body>
-<h2>Liste des vehicules</h2>
+<%
+    String ctx = request.getContextPath();
+%>
+
+<nav class="navbar">
+    <div class="layout">
+        <span class="brand">BackOffice TeamLead</span>
+        <a class="nav-link" href="<%= ctx %>/assignation/form">Assignation</a>
+        <a class="nav-link" href="<%= ctx %>/reservation/form">Reservation</a>
+        <a class="nav-link active" href="<%= ctx %>/vehicule/list">Vehicule</a>
+    </div>
+</nav>
+
+<main class="layout stack">
+<h1 class="page-title">Liste des vehicules</h1>
 
 <%
     Object message = request.getAttribute("message");
     if (message != null) {
 %>
-    <p><strong><%= message %></strong></p>
+    <div class="alert success"><%= message %></div>
 <%
     }
 %>
 
 <p>
-    <a href="<%= request.getContextPath() %>/vehicule/form">Ajouter un vehicule</a>
+    <a class="nav-link active" href="<%= request.getContextPath() %>/vehicule/form">Ajouter un vehicule</a>
 </p>
 
-<table border="1" cellpadding="6" cellspacing="0">
+<section class="card">
+<table>
     <thead>
     <tr>
         <th>Id</th>
@@ -64,5 +80,7 @@
     %>
     </tbody>
 </table>
+</section>
+</main>
 </body>
 </html>

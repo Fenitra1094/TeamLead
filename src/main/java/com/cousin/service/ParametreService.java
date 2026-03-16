@@ -30,20 +30,16 @@ public class ParametreService {
     }
 
     public int getTempsAttente() throws SQLException {
-        String valeurTempsAttente = parametreRepository.getValeurByCode("temps_attente");
+        String valeur = parametreRepository.getValeurByCode("temps_attente");
 
-        if (valeurTempsAttente == null || valeurTempsAttente.isBlank()) {
-            return 30;
+        if (valeur == null || valeur.isBlank()) {
+            return 30; // valeur par defaut
         }
 
         try {
-            int tempsAttente = Integer.parseInt(valeurTempsAttente);
-            if (tempsAttente <= 0) {
-                throw new SQLException("Valeur temps_attente invalide: " + valeurTempsAttente);
-            }
-            return tempsAttente;
+            return Integer.parseInt(valeur);
         } catch (NumberFormatException e) {
-            throw new SQLException("Valeur temps_attente invalide: " + valeurTempsAttente, e);
+            throw new SQLException("Valeur temps_attente invalide: " + valeur, e);
         }
     }
 }

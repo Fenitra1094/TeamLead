@@ -7,46 +7,75 @@
 <head>
     <meta charset="UTF-8">
     <title>Reservation</title>
+    <link rel="stylesheet" href="<%= request.getContextPath() %>/assets/css/theme-gray.css">
 </head>
 <body>
-<h2>Insertion Reservation</h2>
+<%
+    String ctx = request.getContextPath();
+%>
+
+<nav class="navbar">
+    <div class="layout">
+        <span class="brand">BackOffice TeamLead</span>
+        <a class="nav-link" href="<%= ctx %>/assignation/form">Assignation</a>
+        <a class="nav-link active" href="<%= ctx %>/reservation/form">Reservation</a>
+        <a class="nav-link" href="<%= ctx %>/vehicule/list">Vehicule</a>
+    </div>
+</nav>
+
+<main class="layout stack">
+<h1 class="page-title">Insertion Reservation</h1>
 
 <%
     Object message = request.getAttribute("message");
     if (message != null) {
 %>
-    <p><strong><%= message %></strong></p>
+    <div class="alert success"><%= message %></div>
 <%
     }
 %>
 
-<form method="post" action="<%= request.getContextPath() %>/reservation/create">
-    <label>Date et heure d'arrivee</label><br>
-    <input type="datetime-local" name="dateHeureArrive" required><br><br>
+<section class="card">
+    <form method="post" action="<%= request.getContextPath() %>/reservation/create" class="stack">
+        <div class="form-row">
+            <div>
+                <label>Date et heure d'arrivee</label>
+                <input type="datetime-local" name="dateHeureArrive" required>
+            </div>
 
-    <label>Id client</label><br>
-    <input type="text" name="idClient" required><br><br>
+            <div>
+                <label>Id client</label>
+                <input type="text" name="idClient" required>
+            </div>
 
-    <label>Nombre de passagers</label><br>
-    <input type="number" name="nbPassager" min="1" required><br><br>
+            <div>
+                <label>Nombre de passagers</label>
+                <input type="number" name="nbPassager" min="1" required>
+            </div>
 
-    <label>Hotel</label><br>
-    <select name="hotel.idHotel" required>
-        <option value="">-- Choisir --</option>
-        <%
-            List<Hotel> hotels = (List<Hotel>) request.getAttribute("hotels");
-            if (hotels != null) {
-                for (Hotel hotel : hotels) {
-        %>
-            <option value="<%= hotel.getIdHotel() %>"><%= hotel.getNom() %></option>
-        <%
-                }
-            }
-        %>
-    </select>
-    <br><br>
+            <div>
+                <label>Hotel</label>
+                <select name="hotel.idHotel" required>
+                    <option value="">-- Choisir --</option>
+                    <%
+                        List<Hotel> hotels = (List<Hotel>) request.getAttribute("hotels");
+                        if (hotels != null) {
+                            for (Hotel hotel : hotels) {
+                    %>
+                        <option value="<%= hotel.getIdHotel() %>"><%= hotel.getNom() %></option>
+                    <%
+                            }
+                        }
+                    %>
+                </select>
+            </div>
+        </div>
 
-    <button type="submit">Enregistrer</button>
-</form>
+        <div>
+            <button type="submit">Enregistrer</button>
+        </div>
+    </form>
+</section>
+</main>
 </body>
 </html>
