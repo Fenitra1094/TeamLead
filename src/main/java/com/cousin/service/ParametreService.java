@@ -1,7 +1,8 @@
 package com.cousin.service;
 
-import com.cousin.repository.ParametreRepository;
 import java.sql.SQLException;
+
+import com.cousin.repository.ParametreRepository;
 
 public class ParametreService {
     private final ParametreRepository parametreRepository;
