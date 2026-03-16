@@ -27,4 +27,21 @@ public class HotelRepository {
 
         return hotels;
     }
+
+    public Integer findIdByCode(String code) throws SQLException {
+        String sql = "SELECT Id_Hotel FROM Hotel WHERE code = ?";
+
+        try (Connection connection = DbConnection.getConnection();
+             PreparedStatement statement = connection.prepareStatement(sql)) {
+            statement.setString(1, code);
+
+            try (ResultSet resultSet = statement.executeQuery()) {
+                if (resultSet.next()) {
+                    return resultSet.getInt("Id_Hotel");
+                }
+            }
+        }
+
+        return null;
+    }
 }
