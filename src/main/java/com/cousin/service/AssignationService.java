@@ -21,7 +21,7 @@ import com.cousin.repository.VehiculeRepository;
 import com.cousin.util.AssignationResult;
 import com.cousin.util.DbConnection;
 import com.cousin.util.DureeResult;
-import com.cousin.util.GroupeVol;
+import com.cousin.util.GroupeTemps;
 
 public class AssignationService {
     private final AssignationRepository assignationRepository;
@@ -29,6 +29,7 @@ public class AssignationService {
     private final VehiculeRepository vehiculeRepository;
     private final TrajetRepository trajetRepository;
     private final GroupingService groupingService;
+    private final ParametreService parametreService;
     private final RouteService routeService;
     private final DureeService dureeService;
 
@@ -38,6 +39,7 @@ public class AssignationService {
         this.vehiculeRepository = new VehiculeRepository();
         this.trajetRepository = new TrajetRepository();
         this.groupingService = new GroupingService();
+        this.parametreService = new ParametreService();
         this.routeService = new RouteService();
         this.dureeService = new DureeService();
     }
@@ -50,116 +52,114 @@ public class AssignationService {
         List<Reservation> reservationsNonAssignees = new ArrayList<>();
         List<Trajet> trajets = new ArrayList<>();
 
-        Connection connection = null;
-        try {
-            connection = DbConnection.getConnection();
+        try (Connection connection = DbConnection.getConnection()) {
             connection.setAutoCommit(false); // BEGIN TRANSACTION
 
-            // Re-traitement de date: suppression puis recalcul.
-            assignationRepository.deleteAssignationsForDate(date, connection);
-            trajetRepository.deleteTrajetsByDate(date, connection);
+            try {
+                // Re-traitement de date: suppression puis recalcul.
+                assignationRepository.deleteAssignationsForDate(date, connection);
+                trajetRepository.deleteTrajetsByDate(date, connection);
 
-            List<Reservation> reservations = reservationRepository.getReservationsByDate(date, connection);
-            List<GroupeVol> groupes = groupingService.grouperParVol(reservations);
+                List<Reservation> reservations = reservationRepository.getReservationsByDate(date, connection);
+                int tempsAttenteMinutes = parametreService.getTempsAttente();
+                List<GroupeTemps> groupes = groupingService.grouperParTempsAttente(reservations, tempsAttenteMinutes);
 
-            for (GroupeVol groupe : groupes) {
-                LocalDateTime dateDepart = groupe.getHeureArrivee();
-                List<Reservation> restantes = new ArrayList<>(groupe.getReservations());
+                for (GroupeTemps groupe : groupes) {
+                    LocalDateTime dateDepart = groupe.getHeureDepartGroupe();
+                    List<Reservation> restantes = new ArrayList<>(groupe.getReservations());
 
-                while (!restantes.isEmpty()) {
-                    Reservation reservationPivot = restantes.remove(0);
-                    LocalDateTime dateRetourEstime = estimerDateRetour(dateDepart);
+                    while (!restantes.isEmpty()) {
+                        Reservation reservationPivot = restantes.remove(0);
+                        LocalDateTime dateRetourEstime = estimerDateRetour(dateDepart);
 
-                    List<Vehicule> vehiculesDisponibles = vehiculeRepository.getVehiculesDisponible(
-                            reservationPivot.getNbPassager(),
-                            dateDepart,
-                            dateRetourEstime,
-                            connection);
+                        List<Vehicule> vehiculesDisponibles = vehiculeRepository.getVehiculesDisponible(
+                                reservationPivot.getNbPassager(),
+                                dateDepart,
+                                dateRetourEstime,
+                                connection);
 
-                    if (vehiculesDisponibles.isEmpty()) {
-                        reservationsNonAssignees.add(reservationPivot);
-                        continue;
-                    }
+                        if (vehiculesDisponibles.isEmpty()) {
+                            reservationsNonAssignees.add(reservationPivot);
+                            continue;
+                        }
 
-                    Vehicule vehiculeChoisi = vehiculesDisponibles.get(0);
-                    int placesRestantes = vehiculeChoisi.getNbPlace() - reservationPivot.getNbPassager();
+                        Vehicule vehiculeChoisi = vehiculesDisponibles.get(0);
+                        int placesRestantes = vehiculeChoisi.getNbPlace() - reservationPivot.getNbPassager();
 
-                    List<Reservation> reservationsDansVehicule = new ArrayList<>();
-                    reservationsDansVehicule.add(reservationPivot);
+                        List<Reservation> reservationsDansVehicule = new ArrayList<>();
+                        reservationsDansVehicule.add(reservationPivot);
 
-                    Set<Integer> hotelsDansVehiculeSet = new LinkedHashSet<>();
-                    if (reservationPivot.getHotel() != null) {
-                        hotelsDansVehiculeSet.add(reservationPivot.getHotel().getIdHotel());
-                    }
+                        Set<Integer> hotelsDansVehiculeSet = new LinkedHashSet<>();
+                        if (reservationPivot.getHotel() != null) {
+                            hotelsDansVehiculeSet.add(reservationPivot.getHotel().getIdHotel());
+                        }
 
-                    for (int i = 0; i < restantes.size();) {
-                        Reservation reservationCandidate = restantes.get(i);
-                        if (reservationCandidate.getNbPassager() <= placesRestantes) {
-                            reservationsDansVehicule.add(reservationCandidate);
-                            placesRestantes -= reservationCandidate.getNbPassager();
+                        for (int i = 0; i < restantes.size();) {
+                            Reservation reservationCandidate = restantes.get(i);
+                            if (reservationCandidate.getNbPassager() <= placesRestantes) {
+                                reservationsDansVehicule.add(reservationCandidate);
+                                placesRestantes -= reservationCandidate.getNbPassager();
 
-                            if (reservationCandidate.getHotel() != null) {
-                                hotelsDansVehiculeSet.add(reservationCandidate.getHotel().getIdHotel());
+                                if (reservationCandidate.getHotel() != null) {
+                                    hotelsDansVehiculeSet.add(reservationCandidate.getHotel().getIdHotel());
+                                }
+                                restantes.remove(i);
+                            } else {
+                                i++;
                             }
-                            restantes.remove(i);
-                        } else {
-                            i++;
+                        }
+
+                        List<Integer> hotelsDansVehicule = new ArrayList<>(hotelsDansVehiculeSet);
+                        List<TrajetEtape> etapes = routeService.calculerRoute(hotelsDansVehicule);
+                        DureeResult dureeResult = dureeService.calculerDureeMultiStop(dateDepart, etapes);
+
+                        // Regle metier Sprint 3 conservee: distance 0 => non assignee.
+                        if (dureeResult.getDureeMinutes() <= 0) {
+                            reservationsNonAssignees.addAll(reservationsDansVehicule);
+                            continue;
+                        }
+
+                        Trajet trajet = new Trajet(0, vehiculeChoisi.getIdVehicule(),
+                                dateDepart,
+                                dureeResult.getDateRetour(),
+                                date);
+                        trajet.setVehicule(vehiculeChoisi);
+                        trajet.setEtapes(new ArrayList<>());
+
+                        int idTrajet = trajetRepository.insertTrajet(trajet, connection);
+                        trajet.setIdTrajet(idTrajet);
+
+                        for (TrajetEtape etape : etapes) {
+                            etape.setIdTrajet(idTrajet);
+                            trajetRepository.insertTrajetEtape(etape, connection);
+                            trajet.getEtapes().add(etape);
+                        }
+                        trajets.add(trajet);
+
+                        for (Reservation reservationAssignee : reservationsDansVehicule) {
+                            Assignation assignation = new Assignation();
+                            assignation.setIdReservation(reservationAssignee.getIdReservation());
+                            assignation.setIdVehicule(vehiculeChoisi.getIdVehicule());
+                            assignation.setIdTrajet(idTrajet);
+                            assignation.setDateHeureDepart(dateDepart);
+                            assignation.setDateHeureRetour(dureeResult.getDateRetour());
+                            assignation.setReservation(reservationAssignee);
+                            assignation.setVehicule(vehiculeChoisi);
+
+                            assignationRepository.insertAssignation(assignation, connection);
+                            assignations.add(assignation);
                         }
                     }
-
-                    List<Integer> hotelsDansVehicule = new ArrayList<>(hotelsDansVehiculeSet);
-                    List<TrajetEtape> etapes = routeService.calculerRoute(hotelsDansVehicule);
-                    DureeResult dureeResult = dureeService.calculerDureeMultiStop(dateDepart, etapes);
-
-                    // Regle metier Sprint 3 conservee: distance 0 => non assignee.
-                    if (dureeResult.getDureeMinutes() <= 0) {
-                        reservationsNonAssignees.addAll(reservationsDansVehicule);
-                        continue;
-                    }
-
-                    Trajet trajet = new Trajet(0, vehiculeChoisi.getIdVehicule(),
-                            dateDepart,
-                            dureeResult.getDateRetour(),
-                            date);
-                    trajet.setVehicule(vehiculeChoisi);
-                    trajet.setEtapes(new ArrayList<>());
-
-                    int idTrajet = trajetRepository.insertTrajet(trajet, connection);
-                    trajet.setIdTrajet(idTrajet);
-
-                    for (TrajetEtape etape : etapes) {
-                        etape.setIdTrajet(idTrajet);
-                        trajetRepository.insertTrajetEtape(etape, connection);
-                        trajet.getEtapes().add(etape);
-                    }
-                    trajets.add(trajet);
-
-                    for (Reservation reservationAssignee : reservationsDansVehicule) {
-                        Assignation assignation = new Assignation();
-                        assignation.setIdReservation(reservationAssignee.getIdReservation());
-                        assignation.setIdVehicule(vehiculeChoisi.getIdVehicule());
-                        assignation.setIdTrajet(idTrajet);
-                        assignation.setDateHeureDepart(dateDepart);
-                        assignation.setDateHeureRetour(dureeResult.getDateRetour());
-                        assignation.setReservation(reservationAssignee);
-                        assignation.setVehicule(vehiculeChoisi);
-
-                        assignationRepository.insertAssignation(assignation, connection);
-                        assignations.add(assignation);
-                    }
                 }
+
+                connection.commit(); // COMMIT
+            } catch (SQLException e) {
+                rollbackQuietly(connection);
+                throw e;
+            } catch (RuntimeException e) {
+                rollbackQuietly(connection);
+                throw new SQLException("Erreur lors de l'assignation multi-client: " + e.getMessage(), e);
             }
-
-            connection.commit(); // COMMIT
-
-        } catch (SQLException e) {
-            rollbackQuietly(connection);
-            throw e;
-        } catch (RuntimeException e) {
-            rollbackQuietly(connection);
-            throw new SQLException("Erreur lors de l'assignation multi-client: " + e.getMessage(), e);
-        } finally {
-            closeConnectionQuietly(connection);
         }
 
         return new AssignationResult(assignations, reservationsNonAssignees, trajets);
@@ -175,18 +175,6 @@ public class AssignationService {
         }
         try {
             connection.rollback();
-        } catch (SQLException ignored) {
-            // Nothing to do.
-        }
-    }
-
-    private void closeConnectionQuietly(Connection connection) {
-        if (connection == null) {
-            return;
-        }
-        try {
-            connection.setAutoCommit(true);
-            connection.close();
         } catch (SQLException ignored) {
             // Nothing to do.
         }
