@@ -6,9 +6,11 @@
 <head>
     <meta charset="UTF-8">
     <title>Vehicule</title>
+    <link rel="stylesheet" href="<%= request.getContextPath() %>/assets/css/theme-gray.css">
 </head>
 <body>
 <%
+    String ctx = request.getContextPath();
     Object message = request.getAttribute("message");
     Vehicule vehicule = (Vehicule) request.getAttribute("vehicule");
     String action = (String) request.getAttribute("action");
@@ -21,31 +23,54 @@
     String typeVehicule = vehicule != null && vehicule.getTypeVehicule() != null ? vehicule.getTypeVehicule() : "";
 %>
 
-<h2><%= isEdit ? "Modification Vehicule" : "Insertion Vehicule" %></h2>
+<nav class="navbar">
+    <div class="layout">
+        <span class="brand">BackOffice TeamLead</span>
+        <a class="nav-link" href="<%= ctx %>/assignation/form">Assignation</a>
+        <a class="nav-link" href="<%= ctx %>/reservation/form">Reservation</a>
+        <a class="nav-link active" href="<%= ctx %>/vehicule/list">Vehicule</a>
+    </div>
+</nav>
+
+<main class="layout stack">
+<h1 class="page-title"><%= isEdit ? "Modification Vehicule" : "Insertion Vehicule" %></h1>
 
 <% if (message != null) { %>
-    <p><strong><%= message %></strong></p>
+    <div class="alert success"><%= message %></div>
 <% } %>
 
-<form method="post" action="<%= request.getContextPath() %>/vehicule/form?action=<%= action %>">
-    <% if (isEdit) { %>
-        <input type="hidden" name="id_vehicule" value="<%= vehicule.getIdVehicule() %>">
-    <% } %>
+<section class="card">
+    <form method="post" action="<%= request.getContextPath() %>/vehicule/form?action=<%= action %>" class="stack">
+        <% if (isEdit) { %>
+            <input type="hidden" name="id_vehicule" value="<%= vehicule.getIdVehicule() %>">
+        <% } %>
 
-    <label>Reference</label><br>
-    <input type="text" name="reference" value="<%= reference %>" required><br><br>
+        <div class="form-row">
+            <div>
+                <label>Reference</label>
+                <input type="text" name="reference" value="<%= reference %>" required>
+            </div>
 
-    <label>Nombre de places</label><br>
-    <input type="number" name="nbPlace" min="1" value="<%= nbPlace %>" required><br><br>
+            <div>
+                <label>Nombre de places</label>
+                <input type="number" name="nbPlace" min="1" value="<%= nbPlace %>" required>
+            </div>
 
-    <label>Type vehicule</label><br>
-    <input type="text" name="typeVehicule" value="<%= typeVehicule %>"><br><br>
+            <div>
+                <label>Type vehicule</label>
+                <input type="text" name="typeVehicule" value="<%= typeVehicule %>">
+            </div>
+        </div>
 
-    <button type="submit">Enregistrer</button>
-</form>
+        <div>
+            <button type="submit">Enregistrer</button>
+        </div>
+    </form>
 
-<p>
-    <a href="<%= request.getContextPath() %>/vehicule/list">Voir la liste</a>
-</p>
+    <p>
+        <a class="nav-link active" href="<%= request.getContextPath() %>/vehicule/list">Voir la liste</a>
+    </p>
+</section>
+</main>
 </body>
 </html>

@@ -6,12 +6,14 @@ set SRC=src
 set BUILD=build
 set LIB_WEBINF=WEB-INF\lib
 set CLASSES_WEBINF=WEB-INF\classes
-@REM set TOMCAT_LIB=E:\apache-tomcat-10.1.28\lib
+@REM set TOMCAT_LIB=C:\apache-tomcat-10.1.28\apache-tomcat-10.1.28\lib
 set TOMCAT_LIB=E:\apache-tomcat-10.1.28\lib
 set FRAMEWORK_JAR=..\Framework\framework.jar
 set WAR_NAME=%APP_NAME%.war
-@REM set TOMCAT_PATH=E:\apache-tomcat-10.1.28
-set TOMCAT_PATH=E:\apache-tomcat-10.1.28
+@REM set TOMCAT_PATH=C:\apache-tomcat-10.1.28\apache-tomcat-10.1.28
+set TOMCAT_HOME=E:\apache-tomcat-10.1.28 
+set TOMCAT_PATH=%TOMCAT_HOME%
+set TOMCAT_WEBAPPS=%TOMCAT_HOME%\webapps
 set WEBAPP_SOURCE=%SRC%\main\webapp
 set APP_LIB=%WEBAPP_SOURCE%\WEB-INF\lib
 set FRAMEWORK_JAR=%APP_LIB%\framework.jar
@@ -157,7 +159,23 @@ echo ✅ %WAR_NAME% genere avec succes
 
 rem Déployer sur Tomcat
 echo Déploiement sur Tomcat...
-copy /y "%WAR_NAME%" "%TOMCAT_PATH%\webapps\"
+if not exist "%TOMCAT_WEBAPPS%" (
+    echo ❌ Dossier webapps introuvable: %TOMCAT_WEBAPPS%
+    pause
+    exit /b 1
+)
+
+rem Supprimer l'exploded app pour forcer la prise en compte des nouvelles JSP/CSS
+if exist "%TOMCAT_WEBAPPS%\%APP_NAME%" (
+    rmdir /s /q "%TOMCAT_WEBAPPS%\%APP_NAME%"
+)
+
+copy /y "%WAR_NAME%" "%TOMCAT_WEBAPPS%\"
+if errorlevel 1 (
+    echo ❌ Echec copie WAR vers %TOMCAT_WEBAPPS%
+    pause
+    exit /b 1
+)
 
 echo.
 echo 🎯 DEPLOIEMENT TERMINE!
