@@ -15,7 +15,9 @@
     </context-param>
        <context-param>
         <param-name>db.password</param-name>
-        <param-value>nella</param-value>
+        <param-value>1234</param-value>
+        <!-- <param-value>nella</param-value> -->
+
     </context-param>
     <context-param>
         <param-name>db.driver</param-name>
@@ -56,4 +58,16 @@
         <servlet-name>default</servlet-name>
         <url-pattern>/assets/*</url-pattern>
     </servlet-mapping>
+
+    <!-- Déclaration des taglibs JSTL -->
+    <jsp-config>
+        <taglib>
+            <taglib-uri>http://java.sun.com/jsp/jstl/core</taglib-uri>
+            <taglib-location>/WEB-INF/tld/c.tld</taglib-location>
+        </taglib>
+        <taglib>
+            <taglib-uri>http://java.sun.com/jsp/jstl/functions</taglib-uri>
+            <taglib-location>/WEB-INF/tld/fn.tld</taglib-location>
+        </taglib>
+    </jsp-config>
 </web-app>
