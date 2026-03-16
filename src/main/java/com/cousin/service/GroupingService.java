@@ -1,16 +1,87 @@
 package com.cousin.service;
 
-import com.cousin.model.Reservation;
-import com.cousin.util.GroupeVol;
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+
+import com.cousin.model.Reservation;
+import com.cousin.util.GroupeTemps;
+import com.cousin.util.GroupeVol;
 
 public class GroupingService {
+
+    public List<GroupeTemps> grouperParTempsAttente(List<Reservation> reservations, int tempsAttenteMinutes) {
+        List<GroupeTemps> groupes = new ArrayList<>();
+        if (reservations == null || reservations.isEmpty()) {
+            return groupes;
+        }
+
+        List<Reservation> triees = new ArrayList<>();
+        for (Reservation reservation : reservations) {
+            if (reservation != null && reservation.getDateHeureArrive() != null) {
+                triees.add(reservation);
+            }
+        }
+
+        if (triees.isEmpty()) {
+            return groupes;
+        }
+
+        triees.sort(Comparator.comparing(Reservation::getDateHeureArrive));
+
+        Set<Integer> traites = new HashSet<>();
+        for (int i = 0; i < triees.size(); i++) {
+            Reservation pivot = triees.get(i);
+            int idPivot = pivot.getIdReservation();
+            if (traites.contains(idPivot)) {
+                continue;
+            }
+
+            LocalDateTime datePivot = pivot.getDateHeureArrive();
+            LocalDateTime fenetreFin = datePivot.plusMinutes(tempsAttenteMinutes);
+
+            List<Reservation> reservationsGroupe = new ArrayList<>();
+            reservationsGroupe.add(pivot);
+            LocalDateTime maxHeure = datePivot;
+            traites.add(idPivot);
+
+            for (int j = i + 1; j < triees.size(); j++) {
+                Reservation candidate = triees.get(j);
+                int idCandidate = candidate.getIdReservation();
+                if (traites.contains(idCandidate)) {
+                    continue;
+                }
+
+                LocalDateTime heureCandidate = candidate.getDateHeureArrive();
+                if (!heureCandidate.isAfter(fenetreFin)) {
+                    reservationsGroupe.add(candidate);
+                    if (heureCandidate.isAfter(maxHeure)) {
+                        maxHeure = heureCandidate;
+                    }
+                    traites.add(idCandidate);
+                } else {
+                    // Liste triee ASC, aucune reservation suivante ne peut entrer dans la fenetre.
+                    break;
+                }
+            }
+
+            reservationsGroupe.sort(Comparator.comparingInt(Reservation::getNbPassager).reversed());
+
+            GroupeTemps groupe = new GroupeTemps();
+            groupe.setHeureDepartGroupe(maxHeure);
+            groupe.setTempsAttenteMinutes(tempsAttenteMinutes);
+            groupe.setReservations(reservationsGroupe);
+            groupes.add(groupe);
+        }
+
+        return groupes;
+    }
 
     public List<GroupeVol> grouperParVol(List<Reservation> reservations) {
         List<GroupeVol> groupes = new ArrayList<>();
