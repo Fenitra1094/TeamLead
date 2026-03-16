@@ -19,7 +19,9 @@ public class AssignationController {
      */
     @GetMapping("/assignation/form")
     public ModelView showForm() {
-        return new ModelView("/WEB-INF/views/assignation.jsp");
+        ModelView mv = new ModelView("/WEB-INF/views/assignation.jsp");
+        mv.addAttribute("tempsAttente", 30);
+        return mv;
     }
 
     /**
@@ -27,8 +29,8 @@ public class AssignationController {
      * /assignation/assigner?date=YYYY-MM-DD
      */
     @GetMapping("/assignation/assigner")
-    public ModelView assigner(@Param("date") String dateStr) {
-        ModelView mv = new ModelView("/WEB-INF/views/assignation.jsp");
+    public ModelView assigner(@Param("date") String dateStr, @Param("tempsAttente") String tempsAttenteStr) {
+        ModelView mv = new ModelView("/WEB-INF/views/assignation_result.jsp");
 
         // Validation de la date
         if (dateStr == null || dateStr.isBlank()) {
@@ -44,12 +46,26 @@ public class AssignationController {
             return mv;
         }
 
+        int tempsAttenteMinutes = 30;
+        if (tempsAttenteStr != null && !tempsAttenteStr.isBlank()) {
+            try {
+                int parsed = Integer.parseInt(tempsAttenteStr);
+                if (parsed >= 1 && parsed <= 180) {
+                    tempsAttenteMinutes = parsed;
+                }
+            } catch (NumberFormatException ignored) {
+                // keep default
+            }
+        }
+
         try {
-            AssignationResult result = assignationService.assignerPourDate(date);
+            AssignationResult result = assignationService.assignerPourDate(date, tempsAttenteMinutes);
             mv.addAttribute("date", date.toString());
+            mv.addAttribute("tempsAttente", tempsAttenteMinutes);
             mv.addAttribute("assignations", result.getAssignations());
             mv.addAttribute("reservationsNonAssignees", result.getReservationsNonAssignees());
             mv.addAttribute("trajets", result.getTrajets());
+            mv.addAttribute("groupes", result.getGroupes());
             mv.addAttribute("message", "Assignation effectuee avec succes pour le " + date);
         } catch (Exception e) {
             mv.addAttribute("error", "Erreur inattendue lors de l'assignation: " + e.getMessage());
