@@ -1,4 +1,4 @@
--- 2026-03-10 : Reinitialisation des donnees pour les schemas staging (ajout Trajet/TrajetEtape)
+-- 2026-03-13 : Reinitialisation des donnees pour les schemas staging (sprint5)
 TRUNCATE TABLE staging.Assignation RESTART IDENTITY CASCADE;
 TRUNCATE TABLE staging.Distance RESTART IDENTITY CASCADE;
 TRUNCATE TABLE staging.token_expiration RESTART IDENTITY CASCADE;
