@@ -10,9 +10,6 @@ Branche 1 : sprint6/fix/2/assignation_result
         Solution :
            Ajouter l'import manquant à la ligne 10 (après l'import LinkedHashMap) :
                 <%@ page import="java.util.LinkedHashSet" %>
-           
-           Fichier complet imports section (ligne 1-20):
-                <%@ page import="java.util.LinkedHashSet" %>        <- AJOUTER CETTE LIGNE
 
         Probleme 1 :
            Resume de groupe incomplet (intervalle, duree, reservations, assignees, non assignees absent en bas du groupe)
