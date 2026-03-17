@@ -32,6 +32,13 @@
         return value.truncatedTo(ChronoUnit.MINUTES);
     }
 
+    private boolean isInInterval(LocalDateTime value, LocalDateTime start, LocalDateTime end) {
+        if (value == null || start == null || end == null) {
+            return false;
+        }
+        return !value.isBefore(start) && value.isBefore(end);
+    }
+
     private Object invokeGetter(Object target, String methodName) {
         if (target == null) {
             return null;
@@ -165,10 +172,10 @@
 
                Set<Integer> reservationsDejaRattachees = new HashSet<Integer>();
                Set<Integer> reportsEnAttente = new LinkedHashSet<Integer>();
-               int numeroGroupe = 0;
-
-               for (GroupeTemps groupe : groupes) {
-                   numeroGroupe++;
+               for (int i = 0; i < groupes.size(); i++) {
+                   GroupeTemps groupe = groupes.get(i);
+                   int numeroGroupe = i + 1;
+                   boolean dernierGroupe = (i == groupes.size() - 1);
                    List<Reservation> reservationsGroupe = groupe != null && groupe.getReservations() != null
                        ? groupe.getReservations()
                        : new ArrayList<Reservation>();
@@ -196,6 +203,12 @@
 
                        int idReservation = assignation.getReservation().getIdReservation();
                        if (!lotIds.contains(idReservation) || reservationsDejaRattachees.contains(idReservation)) {
+                           continue;
+                       }
+
+                       LocalDateTime dateTraitement = toMinute(assignation.getDateHeureDepart());
+                       boolean traiteDansCeGroupe = isInInterval(dateTraitement, debutIntervalle, finIntervalle);
+                       if (!traiteDansCeGroupe && !dernierGroupe) {
                            continue;
                        }
 
@@ -233,7 +246,14 @@
         %>
             <div class="card">
                 <h3>Groupe #<%= numeroGroupe %> @ <%= safe(debutIntervalle) %></h3>
-                <p>Temps d'attente : <%= attenteMinutes %> min | Reportees en entree : <%= lotIds.size() - reservationsGroupeIds.size() %></p>
+                <p class="meta-line">
+                    Intervalle: <%= safe(debutIntervalle) %> -> <%= safe(finIntervalle) %>
+                    | Duree: <%= attenteMinutes %> min
+                    | Reservations: <%= nbReservations %>
+                    | Assignees: <%= nbAssignees %>
+                    | Non assignees: <%= nbNonAssignees %>
+                </p>
+                <p>Reportees en entree : <%= lotIds.size() - reservationsGroupeIds.size() %></p>
 
                 <% if (reservationsGroupe.isEmpty()) { %>
                     <div class="alert warning">Aucune reservation dans ce groupe.</div>
@@ -331,14 +351,6 @@
                     <%     }
                        } %>
                 </div>
-
-                <p class="meta-line">
-                    Intervalle: <%= safe(debutIntervalle) %> -> <%= safe(finIntervalle) %>
-                    | Duree: <%= attenteMinutes %> min
-                    | Reservations: <%= nbReservations %>
-                    | Assignees: <%= nbAssignees %>
-                    | Non assignees: <%= nbNonAssignees %>
-                </p>
             </div>
         <%     }
            } %>
