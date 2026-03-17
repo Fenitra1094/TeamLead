@@ -10,10 +10,6 @@
 <body>
 <%
     String ctx = request.getContextPath();
-    Integer tempsAttenteAttr = (Integer) request.getAttribute("tempsAttente");
-    if (tempsAttenteAttr == null) {
-        tempsAttenteAttr = 30;
-    }
     Object error = request.getAttribute("error");
 %>
 
@@ -40,10 +36,6 @@
                 <div>
                     <label for="date">Date</label>
                     <input type="date" id="date" name="date" required />
-                </div>
-                <div>
-                    <label for="tempsAttente">Temps d'attente (minutes)</label>
-                    <input type="number" id="tempsAttente" name="tempsAttente" value="<%= tempsAttenteAttr %>" min="1" max="180" />
                 </div>
                 <div>
                     <button type="submit">Assigner</button>
