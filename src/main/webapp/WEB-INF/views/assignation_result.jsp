@@ -5,6 +5,9 @@
 <%@ page import="java.util.ArrayList" %>
 <%@ page import="java.util.HashSet" %>
 <%@ page import="java.util.Set" %>
+<%@ page import="java.util.Map" %>
+<%@ page import="java.util.LinkedHashMap" %>
+<%@ page import="java.time.Duration" %>
 <%@ page import="java.lang.reflect.Method" %>
 <%@ page import="java.time.LocalDateTime" %>
 <%@ page import="java.time.temporal.ChronoUnit" %>
@@ -79,6 +82,16 @@
         trajets = new ArrayList<Trajet>();
     }
 
+    Set<Vehicule> vehiculesUtilises = (Set<Vehicule>) request.getAttribute("vehiculesUtilises");
+    if (vehiculesUtilises == null) {
+        vehiculesUtilises = new LinkedHashSet<Vehicule>();
+    }
+
+    List<Vehicule> vehiculesNonUtilises = (List<Vehicule>) request.getAttribute("vehiculesNonUtilises");
+    if (vehiculesNonUtilises == null) {
+        vehiculesNonUtilises = new ArrayList<Vehicule>();
+    }
+
     Set<LocalDateTime> groupesVol = new HashSet<LocalDateTime>();
     for (Assignation assignation : assignations) {
         if (assignation == null || assignation.getReservation() == null) {
@@ -91,11 +104,35 @@
     }
 
     int totalReservationsTraitees = assignations.size() + nonAssignees.size();
+    int kmTotaux = 0;
+    Map<Integer, Integer> nbTrajetsParVehicule = new LinkedHashMap<Integer, Integer>();
+    for (Trajet trajet : trajets) {
+        if (trajet == null) {
+            continue;
+        }
+        int vehiculeId = trajet.getIdVehicule();
+        if (vehiculeId <= 0 && trajet.getVehicule() != null) {
+            vehiculeId = trajet.getVehicule().getIdVehicule();
+        }
+        if (vehiculeId > 0) {
+            Integer current = nbTrajetsParVehicule.get(vehiculeId);
+            nbTrajetsParVehicule.put(vehiculeId, current == null ? 1 : current + 1);
+        }
+
+        List<TrajetEtape> etapesTrajet = trajet.getEtapes();
+        if (etapesTrajet != null) {
+            for (TrajetEtape etape : etapesTrajet) {
+                if (etape != null) {
+                    kmTotaux += etape.getDistanceDepuisPrecedent();
+                }
+            }
+        }
+    }
 %>
 
 <nav class="navbar">
     <div class="layout">
-        <span class="brand">BackOffice TeamLead</span>
+        <span class="brand">BackOffice TeamLead : 3265 - 3273 - 3371</span>
         <a class="nav-link active" href="<%= ctx %>/assignation/form">Assignation</a>
         <a class="nav-link" href="<%= ctx %>/reservation/form">Reservation</a>
         <a class="nav-link" href="<%= ctx %>/vehicule/list">Vehicule</a>
@@ -105,15 +142,16 @@
 <main class="layout stack">
     <h1 class="page-title">Resultat assignation</h1>
 
-    <div class="card">
-        <div class="form-row">
-            <span class="badge">Date: <%= safe(dateChoisie) %></span>
-            <span class="badge">Fenetre: <%= tempsAttente %> min</span>
-            <span class="badge">Total reservations: <%= totalReservationsTraitees %></span>
-            <span class="badge">Groupes: <%= groupes.size() %></span>
-            <span class="badge">Vehicules utilises: <%= trajets.size() %></span>
+    <section class="card">
+        <div class="stats-grid">
+            <div class="stat-pill"><strong>Groupes</strong><span><%= groupes.size() %></span></div>
+            <div class="stat-pill"><strong>Assignees</strong><span><%= assignations.size() %></span></div>
+            <div class="stat-pill"><strong>Vehicules utilises</strong><span><%= vehiculesUtilises.size() %></span></div>
+            <div class="stat-pill"><strong>Non assignees</strong><span><%= nonAssignees.size() %></span></div>
+            <div class="stat-pill"><strong>Km totaux</strong><span><%= kmTotaux %> km</span></div>
         </div>
-    </div>
+        <p class="meta-line">Date: <%= safe(dateChoisie) %> | Fenetre: <%= tempsAttente %> min | Total reservations traitees: <%= totalReservationsTraitees %></p>
+    </section>
 
     <c:if test="${not empty error}">
         <div class="alert error">${error}</div>
@@ -163,55 +201,42 @@
                for (Trajet trajet : trajets) {
                    numeroTrajet++;
                    Vehicule vehicule = trajet.getVehicule();
+                   int distanceTotaleTrajet = 0;
+                   List<TrajetEtape> etapes = trajet.getEtapes();
+                   if (etapes != null) {
+                       for (TrajetEtape etape : etapes) {
+                           if (etape != null) {
+                               distanceTotaleTrajet += etape.getDistanceDepuisPrecedent();
+                           }
+                       }
+                   }
+                   long dureeMinutes = 0;
+                   if (trajet.getDateHeureDepart() != null && trajet.getDateHeureRetour() != null) {
+                       dureeMinutes = Duration.between(trajet.getDateHeureDepart(), trajet.getDateHeureRetour()).toMinutes();
+                   }
         %>
-            <div class="card">
-                <h3>Trajet <%= numeroTrajet %></h3>
-                <p>
-                    Vehicule: <%= vehicule != null ? safe(vehicule.getReference()) : "-" %>
-                    | Capacite: <%= vehicule != null ? vehicule.getNbPlace() : "-" %>
-                    | Depart: <%= safe(trajet.getDateHeureDepart()) %>
-                    | Retour: <%= safe(trajet.getDateHeureRetour()) %>
-                </p>
-                <table>
-                    <thead>
-                    <tr>
-                        <th>Ordre</th>
-                        <th>Etape hotel</th>
-                        <th>Distance depuis precedent (km)</th>
-                    </tr>
-                    </thead>
-                    <tbody>
-                    <% List<TrajetEtape> etapes = trajet.getEtapes();
-                       if (etapes == null || etapes.isEmpty()) {
-                    %>
-                        <tr>
-                            <td colspan="3">Aucune etape detaillee.</td>
-                        </tr>
+            <div class="card trajet-block">
+                <h3>[Trajet #<%= numeroTrajet %> : <%= vehicule != null ? safe(vehicule.getReference()) : "V-?" %> (<%= vehicule != null ? vehicule.getNbPlace() : "?" %>p, <%= vehicule != null ? safe(vehicule.getTypeVehicule()) : "-" %>)]</h3>
+                <p>Depart <%= safe(trajet.getDateHeureDepart()) %> -> Retour <%= safe(trajet.getDateHeureRetour()) %></p>
+                <p>Distance : <%= distanceTotaleTrajet %> km | Duree : <%= dureeMinutes %> min</p>
+
+                <div class="route-line">
+                    <strong>Itineraire :</strong>
+                    <span>AER</span>
+                    <% if (etapes == null || etapes.isEmpty()) { %>
+                        <span> -> AER</span>
                     <% } else {
                            for (TrajetEtape etape : etapes) {
                                Hotel hotel = etape.getHotel();
                     %>
-                        <tr>
-                            <td><%= etape.getOrdre() %></td>
-                            <td><%= hotel != null ? safe(hotel.getNom()) : "-" %></td>
-                            <td><%= etape.getDistanceDepuisPrecedent() %></td>
-                        </tr>
-                    <%     }
-                       }
-                    %>
-                    </tbody>
-                </table>
+                        <span> --<%= etape.getDistanceDepuisPrecedent() %>km--> <%= hotel != null ? safe(hotel.getNom()) : "HOTEL" %></span>
+                    <%     } %>
+                        <span> --> AER</span>
+                    <% } %>
+                </div>
 
-                <table style="margin-top: 10px;">
-                    <thead>
-                    <tr>
-                        <th>Reservation</th>
-                        <th>Client</th>
-                        <th>Passagers</th>
-                        <th>Hotel</th>
-                    </tr>
-                    </thead>
-                    <tbody>
+                <p class="meta-line">
+                    <strong>Reservations :</strong>
                     <% boolean hasAssignation = false;
                        for (Assignation a : assignations) {
                            if (a.getIdTrajet() != trajet.getIdTrajet()) {
@@ -219,26 +244,82 @@
                            }
                            hasAssignation = true;
                            Reservation r = a.getReservation();
+                           String hotelNom = (r != null && r.getHotel() != null) ? r.getHotel().getNom() : "-";
                     %>
-                        <tr>
-                            <td><%= r != null ? r.getIdReservation() : "-" %></td>
-                            <td><%= r != null ? safe(r.getIdClient()) : "-" %></td>
-                            <td><%= r != null ? r.getNbPassager() : "-" %></td>
-                            <td><%= (r != null && r.getHotel() != null) ? safe(r.getHotel().getNom()) : "-" %></td>
-                        </tr>
+                        <span class="trip-chip">R<%= r != null ? r.getIdReservation() : "-" %> (<%= r != null ? r.getNbPassager() : "-" %>p, <%= safe(hotelNom) %>)</span>
                     <% }
                        if (!hasAssignation) {
                     %>
-                        <tr>
-                            <td colspan="4">Aucune reservation liee a ce trajet.</td>
-                        </tr>
+                        <span>Aucune reservation liee a ce trajet.</span>
                     <% } %>
-                    </tbody>
-                </table>
+                </p>
             </div>
         <%   }
            }
         %>
+    </section>
+
+    <section class="card">
+        <h2>Vehicules utilises</h2>
+        <c:if test="${empty vehiculesUtilises}">
+            <div class="alert warning">Aucun vehicule utilise pour cette execution.</div>
+        </c:if>
+        <c:if test="${not empty vehiculesUtilises}">
+            <table>
+                <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Reference</th>
+                    <th>Type</th>
+                    <th>Capacite</th>
+                    <th>Nb trajets effectues</th>
+                </tr>
+                </thead>
+                <tbody>
+                <% for (Vehicule v : vehiculesUtilises) {
+                       int idVeh = v != null ? v.getIdVehicule() : 0;
+                       Integer nbTrajets = nbTrajetsParVehicule.get(idVeh);
+                %>
+                    <tr>
+                        <td><%= idVeh > 0 ? idVeh : -1 %></td>
+                        <td><%= v != null ? safe(v.getReference()) : "-" %></td>
+                        <td><%= v != null ? safe(v.getTypeVehicule()) : "-" %></td>
+                        <td><%= v != null ? v.getNbPlace() : 0 %></td>
+                        <td><%= nbTrajets != null ? nbTrajets : 0 %></td>
+                    </tr>
+                <% } %>
+                </tbody>
+            </table>
+        </c:if>
+    </section>
+
+    <section class="card table-muted">
+        <h2>Vehicules non utilises</h2>
+        <c:if test="${empty vehiculesNonUtilises}">
+            <div class="alert warning">Tous les vehicules ont ete utilises.</div>
+        </c:if>
+        <c:if test="${not empty vehiculesNonUtilises}">
+            <table>
+                <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Reference</th>
+                    <th>Type</th>
+                    <th>Capacite</th>
+                </tr>
+                </thead>
+                <tbody>
+                <c:forEach var="v" items="${vehiculesNonUtilises}">
+                    <tr>
+                        <td>${v.idVehicule}</td>
+                        <td>${v.reference}</td>
+                        <td>${v.typeVehicule}</td>
+                        <td>${v.nbPlace}</td>
+                    </tr>
+                </c:forEach>
+                </tbody>
+            </table>
+        </c:if>
     </section>
 
     <c:if test="${not empty reservationsNonAssignees}">

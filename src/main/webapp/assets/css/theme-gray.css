@@ -37,8 +37,8 @@ body {
     position: sticky;
     top: 0;
     z-index: 20;
-    background: rgba(31, 41, 51, 0.94);
-    border-bottom: 1px solid #111827;
+    background: #2c3e50;
+    border-bottom: 1px solid #1f2b38;
     backdrop-filter: blur(4px);
 }
 
@@ -51,14 +51,14 @@ body {
 }
 
 .brand {
-    color: #f3f4f6;
+    color: #ffffff;
     font-weight: 700;
     margin-right: 18px;
     letter-spacing: 0.3px;
 }
 
 .nav-link {
-    color: #d1d5db;
+    color: #ffffff;
     text-decoration: none;
     padding: 8px 12px;
     border-radius: 8px;
@@ -67,7 +67,7 @@ body {
 
 .nav-link:hover,
 .nav-link.active {
-    background: #4b5563;
+    background: #3498db;
     color: #fff;
 }
 
@@ -192,6 +192,59 @@ th {
 .stack {
     display: grid;
     gap: 14px;
+}
+
+.stats-grid {
+    display: grid;
+    gap: 10px;
+    grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+}
+
+.stat-pill {
+    background: #f1f5f9;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 10px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 14px;
+}
+
+.meta-line {
+    color: var(--text-soft);
+    margin-top: 8px;
+}
+
+.trajet-block {
+    border-left: 4px solid #3498db;
+}
+
+.route-line {
+    padding: 8px 10px;
+    border-radius: 8px;
+    background: #f8fafc;
+    border: 1px dashed #cbd5e1;
+    margin: 8px 0;
+    line-height: 1.6;
+}
+
+.trip-chip {
+    display: inline-block;
+    margin: 2px 6px 2px 0;
+    padding: 4px 8px;
+    border-radius: 999px;
+    border: 1px solid #bfdbfe;
+    background: #eff6ff;
+    color: #1e3a8a;
+}
+
+.table-muted {
+    background: #f3f4f6;
+}
+
+.table-muted table {
+    background: #f8fafc;
 }
 
 @media (max-width: 768px) {
