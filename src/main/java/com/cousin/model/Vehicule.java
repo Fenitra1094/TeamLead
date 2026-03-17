@@ -5,6 +5,8 @@ public class Vehicule {
     private String reference;
     private int nbPlace;
     private String typeVehicule;
+    private int trajetCount;  // Nombre de trajets du jour (données contextuelles)
+    private java.time.LocalDateTime dernierRetour;  // Dernier retour du jour (données contextuelles)
 
     public Vehicule() {
     }
@@ -46,5 +48,21 @@ public class Vehicule {
 
     public void setTypeVehicule(String typeVehicule) {
         this.typeVehicule = typeVehicule;
+    }
+
+    public int getTrajetCount() {
+        return trajetCount;
+    }
+
+    public void setTrajetCount(int trajetCount) {
+        this.trajetCount = trajetCount;
+    }
+
+    public java.time.LocalDateTime getDernierRetour() {
+        return dernierRetour;
+    }
+
+    public void setDernierRetour(java.time.LocalDateTime dernierRetour) {
+        this.dernierRetour = dernierRetour;
     }
 }
