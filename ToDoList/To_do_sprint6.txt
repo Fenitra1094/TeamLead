@@ -3,7 +3,7 @@ SPRINT 6 - Consideration du Trajet / retour = disponible + amelioration UI
 ROLE :
 Team Lead - ETU 3371
 
-DEV 1 - ETU xxxx
+DEV 1 - ETU 3265
 DEV 2 - ETU xxxx
 
 Tout sur BackOffice
