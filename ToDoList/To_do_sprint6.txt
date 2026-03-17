@@ -1,0 +1,191 @@
+SPRINT 6 - Consideration du Trajet / retour = disponible + amelioration UI
+
+ROLE :
+Team Lead - ETU 3371
+
+DEV 1 - ETU xxxx
+DEV 2 - ETU xxxx
+
+Tout sur BackOffice
+
+REGLES METIER
+- Si retour vehicule <= fin_groupe : vehicule disponible a son heure de retour
+- dateHeureDepart du groupe = MAX(max_reservation_groupe, dateRetour_vehicules_assignes)
+  => donc dateHeureDepart peut etre mis a jour si un vehicule rentre apres la max reservations
+- Reservations non assignees d'un groupe sont reportees au groupe suivant
+  => si plus aucun groupe => elles deviennent reservationsNonAssignees definitivement
+- Nouveau tri vehicule (avant Diesel) : COUNT(Trajet du jour) ASC => vehicule moins charge en priority
+- Formulaire : plus de temps_attente, seulement la date (defaut = aujourd'hui)
+
+DEV1 :
+Branche 1 :  sprint6/1/vehicule_repository
+- Modifier `VehiculeRepository.getVehiculesDisponible()` :
+Objectif :
+    Retourner les vehicules candidats pour une reservation, en tenant compte :
+    1) du nombre de trajets deja faits dans la date demandee
+    2) des vehicules qui reviennent pendant l'intervalle du groupe
+
+  Entrees :
+    - nbPassagers
+    - date (date d'assignation)
+    - debut_groupe (heure courante de depart du groupe)
+    - fin_groupe
+    - connection
+
+  Algorithme (repository) :
+
+    Etape 1 - Sous-requete "charge du jour" (date parametree)
+      SELECT t.Id_Vehicule,
+             COUNT(t.Id_Trajet) AS trajet_count
+      FROM dev.Trajet t
+      WHERE DATE(t.date_assignation) = ?
+      GROUP BY t.Id_Vehicule
+
+    Etape 2 - Requete principale
+      SELECT v.*,
+             COALESCE(tc.trajet_count, 0) AS trajet_count
+      FROM dev.Vehicule v
+      LEFT JOIN (
+        -- Etape 1
+      ) tc ON tc.Id_Vehicule = v.Id_Vehicule
+      WHERE v.nbPlace >= ?
+        AND (
+          -- Cas A : vehicule deja libre au debut_groupe
+          dernier_retour <= debut_groupe
+          OR
+          -- Cas B : vehicule qui revient pendant le groupe
+          (dernier_retour > debut_groupe AND dernier_retour <= fin_groupe)
+        )
+      ORDER BY
+        trajet_count ASC,
+        CASE WHEN v.typeVehicule = 'D' THEN 0 ELSE 1 END ASC,
+        RANDOM()
+
+    Etape 3 - Retour methode
+      Mapper les lignes SQL vers List<Vehicule> (avec trajet_count),
+      puis laisser le service choisir le premier candidat.
+
+  Signature conseillee :
+    getVehiculesDisponible(int nbPassagers, LocalDate date, LocalDateTime debut_groupe, LocalDateTime fin_groupe, Connection conn)
+    => retourne les vehicules capacitaires qui sont libres ou qui reviennent avant fin_groupe
+
+Branche 2 : sprint6/1/assignation_service
+- Adapter `AssignationService.assignerPourDate()` pour la logique retour :
+
+  Algorithme par groupe :
+  
+    reservationsRestantes = groupe.reservations + reservations_reportees_groupes_precedents
+    dateDepart = groupe.getHeureDepartGroupe()
+    fin_groupe = premiere_reservation_du_groupe + tempsAttenteMinutes
+    
+    TANT QUE reservationsRestantes non vide :
+      R = reservationsRestantes (plus grand nbPassager)
+      candidats = getVehiculesDisponible(R.nbPassager, date, fin_groupe, conn)
+      
+      SI candidats vide :
+        marquer R comme "a reporter" => passer a la suivante
+        SI toutes les R ont ete tentees sans succes => sortir boucle
+      
+      SINON :
+        vehicule = candidats.get(0)  // best candidate (trajet_count + diesel + rand)
+        dateDispoVehicule = MAX(dateDepart, vehicule.dateRetourDernierTrajet)
+        dateDepart = MAX(dateDepart, dateDispoVehicule)  // mise a jour depart groupe
+        
+        Remplir vehicule : R + autres reservations compatibles (passager <= place_restante)
+        Creer Trajet(dateHeureDepart = dateDepart)
+        Creer Assignations(dateHeureDepart = dateDepart)
+        Retirer reservations assignees de reservationsRestantes
+
+    IMPORTANT : dateHeureDepart est mise a jour seulement si le vehicule est effectivement assigne a une reservation, pas juste candidat. -> izany hoe raisina ilay lera nahatongavan'ilay vehicule rehefa toa ka izy no lera > indrindra de raha assigne amina reservation ao anatin'ilay groupe izy 
+    
+    reservations_reportees = reservationsRestantes (portees au groupe suivant)
+    SI dernier groupe : elles deviennent reservationsNonAssignees
+
+DEV 2 :
+Branche 1 : sprint6/2/assignation_controller
+ assigner() :
+    -> Ne prend plus que @Param("date")
+    -> tempsAttenteMinutes = paramService.getTempsAttente()  // depuis DB (parametre interne, non saisi dans le formulaire)
+    -> Appel assignerPourDate(date, tempsAttenteMinutes) conserve : le groupement Sprint 5/6 utilise encore cette valeur
+    -> Construire Set<Vehicule> vehiculesUtilises (SANS doublons) depuis result.getAssignations()
+    -> Construire List<Vehicule> vehiculesNonUtilises = tous - vehiculesUtilises
+    -> Passer au ModelView : groupes, trajets, assignations, vehiculesUtilises,
+                              vehiculesNonUtilises, reservationsNonAssignees
+
+- Modifier `assignation.jsp` (formulaire) :
+  -> Retirer champs "tempsAttente" et "vitesseMoyenne"
+
+Branche 2 : sprint6/2/ui_resultats
+
+- Modifier `assignation_result.jsp` (affichage resultats) :
+  
+  1. Ajouter barre de stats rapide en haut :
+     nb groupes | nb assignees | nb vehicules utilises (uniques) | nb non assignees | km totaux
+  
+  2. Tableau "Vehicules utilises" :
+     -> Utiliser vehiculesUtilises (Set unique => 1 vehicule utilise N fois = 1 ligne)
+     -> Colonne supplementaire : "nb trajets effectues" ce jour
+  
+  3. Affichage trajets en format visuel :
+     AER --12km--> CLB --15km--> HSV --20km--> AER
+     + ligne depart/retour + distance totale + reservations embarquees
+      
+      Format visuel souhaité :
+    
+         [Trajet #1 : V1 (8p, Diesel)]
+         Départ 2026-03-20 04:20 → Retour 2026-03-20 05:15
+         Distance : 67 km | Durée : 55 min
+         Itinéraire : AER  --12km-->  CLB  --15km-->  HSV  --20km-->  AER
+                     (4:20)        (4:27)        (4:42)        (5:15)
+         
+         Réservations : R1 (7p, Colbert) + R4 (1p, Panache)
+         
+         ---
+         
+         [Trajet #2 : V2 (4p, Essence)]
+         Départ 2026-03-20 04:20 → Retour 2026-03-20 04:56
+         Distance : 31 km | Durée : 23 min
+         Itinéraire : AER  --15km-->  NVL  --16km-->  AER
+                     (4:20)        (4:31)        (4:56)
+         
+         Réservations : R2 (4p, Novotel)
+  
+  4. Tableau "Vehicules non utilises" (en grise)
+
+- Modifier header (menu) :
+  -> Titre : "BackOffice TeamLead" : "3265 - 3273 - 3371"
+  -> Menu fixe : inchange
+  -> Theme : gris fonce (#2c3e50) avec liens blancs, actif en bleu
+
+Branche 3 : sprint6/2/database_seed
+- Creer `base/data/sprint6/init_sprint6.sql`
+
+  DONNEES DE TEST :
+
+  Vehicules (3) :
+    V1 : 8 places, Diesel
+    V2 : 4 places, Essence
+    V3 : 12 places, Diesel
+
+  Reservations (5) pour date 2026-03-20 :
+    R1 : 04:20, 7 passagers, Hotel Colbert
+    R2 : 04:45, 4 passagers, Hotel Novotel
+    R3 : 04:45, 2 passagers, Hotel Hibiscus
+    R4 : 04:47, 1 passager,  Hotel Panache
+    R5 : 05:40, 3 passagers, Hotel Colbert
+
+  Parametres :
+    temps_attente = 30 (minutes)
+    Vm = 30 (km/h)
+  
+  Distances (fictives mais coherentes) :
+    AER -> Colbert  = 12 km
+    AER -> Novotel  = 15 km
+    AER -> Hibiscus = 20 km
+    AER -> Panache  = 10 km
+    Colbert  -> Novotel  = 8 km
+    Colbert  -> Hibiscus = 9 km
+    Colbert  -> Panache  = 5 km
+    Novotel  -> Hibiscus = 7 km
+    Novotel  -> Panache  = 6 km
+    Hibiscus -> Panache  = 4 km
