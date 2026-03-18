@@ -15,12 +15,10 @@ import com.cousin.model.Assignation;
 public class AssignationRepository {
 
     /**
-     * Insère une assignation en utilisant une connexion existante (pour la transaction).
-     * SPRINT 7: Inclut le champ quantitePassagersAssignes pour supporter les assignations partielles.
+     * Insère une assignation (potentiellement partielle) en utilisant une connexion existante (pour la transaction).
+     * Sprint 7 : Supporte quantitePassagersAssignes pour les assignations partielles.
      */
     public void insertAssignation(Assignation assignation, Connection connection) throws SQLException {
-        // Note: Le champ quantitePassagersAssignes doit exister dans la table Assignation
-        // Migration SQL required: ALTER TABLE Assignation ADD COLUMN quantitePassagersAssignes INT DEFAULT 0;
         String sql = "INSERT INTO Assignation(Id_Reservation, Id_Vehicule, date_heure_depart, date_heure_retour, Id_Trajet, quantitePassagersAssignes) " +
                      "VALUES (?, ?, ?, ?, ?, ?)";
 
@@ -35,8 +33,8 @@ public class AssignationRepository {
             } else {
                 statement.setNull(5, java.sql.Types.INTEGER);
             }
-
-            // SPRINT 7: Ajouter la quantité de passagers assignés
+           
+            // Sprint 7 : Quantité de passagers assignés (support des splits)
             statement.setInt(6, assignation.getQuantitePassagersAssignes());
 
             statement.executeUpdate();
