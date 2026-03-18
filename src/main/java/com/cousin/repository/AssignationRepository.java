@@ -16,10 +16,13 @@ public class AssignationRepository {
 
     /**
      * Insère une assignation en utilisant une connexion existante (pour la transaction).
+     * SPRINT 7: Inclut le champ quantitePassagersAssignes pour supporter les assignations partielles.
      */
     public void insertAssignation(Assignation assignation, Connection connection) throws SQLException {
-        String sql = "INSERT INTO Assignation(Id_Reservation, Id_Vehicule, date_heure_depart, date_heure_retour, Id_Trajet) " +
-                     "VALUES (?, ?, ?, ?, ?)";
+        // Note: Le champ quantitePassagersAssignes doit exister dans la table Assignation
+        // Migration SQL required: ALTER TABLE Assignation ADD COLUMN quantitePassagersAssignes INT DEFAULT 0;
+        String sql = "INSERT INTO Assignation(Id_Reservation, Id_Vehicule, date_heure_depart, date_heure_retour, Id_Trajet, quantitePassagersAssignes) " +
+                     "VALUES (?, ?, ?, ?, ?, ?)";
 
         try (PreparedStatement statement = connection.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
             statement.setInt(1, assignation.getIdReservation());
@@ -32,8 +35,9 @@ public class AssignationRepository {
             } else {
                 statement.setNull(5, java.sql.Types.INTEGER);
             }
-           
-            statement.setObject(5, assignation.getIdTrajet(), Types.INTEGER);
+
+            // SPRINT 7: Ajouter la quantité de passagers assignés
+            statement.setInt(6, assignation.getQuantitePassagersAssignes());
 
             statement.executeUpdate();
 

@@ -9,12 +9,14 @@ public class Assignation {
     private Integer idTrajet;
     private LocalDateTime dateHeureDepart;
     private LocalDateTime dateHeureRetour;
+    private int quantitePassagersAssignes; // SPRINT 7: Supporte les assignations partielles
 
     // Objets liés pour l'affichage
     private Reservation reservation;
     private Vehicule vehicule;
 
     public Assignation() {
+        this.quantitePassagersAssignes = 0;
     }
 
     public Assignation(int idAssignation, int idReservation, int idVehicule, Integer idTrajet,
@@ -25,6 +27,18 @@ public class Assignation {
         this.idTrajet = idTrajet;
         this.dateHeureDepart = dateHeureDepart;
         this.dateHeureRetour = dateHeureRetour;
+        this.quantitePassagersAssignes = 0;
+    }
+
+    public Assignation(int idAssignation, int idReservation, int idVehicule, Integer idTrajet,
+                       LocalDateTime dateHeureDepart, LocalDateTime dateHeureRetour, int quantitePassagersAssignes) {
+        this.idAssignation = idAssignation;
+        this.idReservation = idReservation;
+        this.idVehicule = idVehicule;
+        this.idTrajet = idTrajet;
+        this.dateHeureDepart = dateHeureDepart;
+        this.dateHeureRetour = dateHeureRetour;
+        this.quantitePassagersAssignes = quantitePassagersAssignes;
     }
 
     public int getIdAssignation() {
@@ -73,6 +87,14 @@ public class Assignation {
 
     public void setDateHeureRetour(LocalDateTime dateHeureRetour) {
         this.dateHeureRetour = dateHeureRetour;
+    }
+
+    public int getQuantitePassagersAssignes() {
+        return quantitePassagersAssignes;
+    }
+
+    public void setQuantitePassagersAssignes(int quantitePassagersAssignes) {
+        this.quantitePassagersAssignes = quantitePassagersAssignes;
     }
 
     public Reservation getReservation() {
