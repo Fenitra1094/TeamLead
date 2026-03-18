@@ -1,0 +1,141 @@
+SPRINT 7 - Division / Split des reservations + remplissage intelligent des vehicules
+
+ROLE :
+Team Lead - ETU 3371
+
+DEV 1 - ETU 3265
+DEV 2 - ETU 3273
+
+Tout sur BackOffice
+
+REGLES METIER (Sprint 7)
+- Une reservation devient divisible (split passagers) si aucun vehicule unique ne peut absorber tous les passagers restants.
+- Priorite de traitement des reservations : nbPassager DESC.
+- Pour une reservation en cours, on traite TOUTES ses divisions/sous-parties avant de passer a la reservation suivante.
+- Resolution explicite du tri vehicule :
+  1) on recupere/ordonne d'abord les vehicules en DESC (capacite) depuis la base
+  2) pendant le traitement d'assignation, on choisit le vehicule "plus proche" du besoin restant
+  3) tie-breakers ensuite : nb trajets min, diesel, random
+- Les vehicules disponibles sont tries, et le choix se fait sur la capacite la plus proche du besoin restant, puis tie-breakers : nb trajets min, diesel, random.
+- Si un vehicule est entame (places restantes), il doit etre rempli prioritairement avec des reservations compatibles en parcourant la liste vers le bas.
+- Les passagers restants non assignables d'une reservation sont reportes au regroupement suivant.
+- Temps d'attente / regroupement reste identique aux sprints precedents.
+- La logique trajet existante reste valable ; seul le mode d'assignation evolue.
+
+DEV1 :
+Branche 1 : sprint7/1/vehicule_repository
+- Adapter la selection de vehicules disponibles pour supporter le split :
+  Objectif :
+    Retourner une liste de candidats en deux temps : tri initial DESC, puis choix final "plus proche" pendant l'assignation.
+
+  Entrees :
+    - passagersRestants
+    - date
+    - debut_groupe
+    - fin_groupe
+    - connection
+
+  Tri cible des candidats :
+    Etape A (recuperation base) :
+    1) capacite DESC
+
+    Etape B (selection metier pendant traitement) :
+    1) capacite >= passagersRestants en priorite
+    2) ecart(capacite - passagersRestants) ASC (plus proche)
+    3) nombre de trajets du jour ASC
+    4) diesel avant essence
+    5) random
+
+  Cas sans capacite suffisante :
+    - fallback autorise vers capacites < passagersRestants (toujours plus proche en DESC)
+    - permet split immediat (prendre max possible, continuer sur reste)
+
+  Signature conseillee :
+    getVehiculesCandidatsPourSplit(int passagersRestants, LocalDate date, LocalDateTime debutGroupe, LocalDateTime finGroupe, Connection conn)
+
+Branche 2 : sprint7/1/assignation_service
+- Adapter AssignationService.assignerPourDate() pour la division des reservations :
+
+  Algorithme par groupe :
+
+    reservationsRestantes = groupe.reservations + reservations_reportees_groupes_precedents
+    trier reservationsRestantes par nbPassager DESC
+    dateDepart = groupe.getHeureDepartGroupe()
+
+    POUR chaque reservation R (dans l'ordre) :
+      passagersRestants = R.nbPassager
+
+      TANT QUE passagersRestants > 0 :
+        candidats = getVehiculesCandidatsPourSplit(passagersRestants, date, debut/fin_groupe, conn)
+
+        SI candidats vide :
+          marquer passagersRestants de R comme non assignables dans ce groupe
+          BREAK
+
+        vehicule = meilleur candidat
+        capaciteDisponibleVehicule = places restantes vehicule sur ce depart
+
+        SI capaciteDisponibleVehicule <= 0 :
+          passer au candidat suivant
+
+        personnesAEmbarquer = MIN(passagersRestants, capaciteDisponibleVehicule)
+
+        creer/mise a jour assignation partielle pour R sur vehicule (personnesAEmbarquer)
+        passagersRestants -= personnesAEmbarquer
+
+        SI vehicule encore non plein :
+          chercher en bas de la liste des reservations non assignees une reservation compatible pour remplir
+          continuer jusqu'a vehicule plein ou plus de reservation compatible
+
+      FIN TANT QUE
+
+    reservations_reportees = restes non assignes
+    SI dernier groupe : restes -> reservationsNonAssignees definitives
+
+  IMPORTANT :
+    - Une reservation peut produire plusieurs lignes d'assignation partielles.
+    - On ne passe pas a la reservation suivante tant que la reservation courante n'a pas fini son traitement (assignee/splitee/reportee).
+    - Conserver la compatibilite avec les regles sprint precedentes (retour vehicule, date depart groupe, etc.).
+
+DEV2 :
+Branche 1 : sprint7/2/model_repository
+- Faire evoluer le modele/stockage pour supporter les assignations partielles :
+  - Ajouter un champ quantitePassagersAssignes (ou equivalent) sur Assignation.
+  - Si schema SQL requis : migration sprint7 pour la nouvelle colonne.
+  - Adapter repository save/load d'Assignation pour persister cette quantite.
+
+Branche 2 : sprint7/2/assignation_controller
+- Conserver endpoint date-only.
+- Exposer dans ModelView les donnees de split :
+  - details assignations partielles par reservation
+  - passagers restants non assignes par reservation
+  - resume groupe (total demandes / total assignes / total reportes)
+
+Branche 3 : sprint7/2/ui_resultats
+- Modifier assignation_result.jsp :
+  1) Afficher les assignations partielles clairement (reservation -> vehicule -> nb passagers embarques)
+  2) Afficher les restes non assignes par reservation (pas seulement liste globale)
+  3) Marquer visuellement split complet vs split partiel vs non assigne
+  4) Eviter toute duplication d'information
+
+  Exemple d'affichage attendu :
+    Reservation R3 (8p)
+      - V2 (6p embarques)
+      - Restant : 2p (reporte)
+
+Branche 4 : sprint7/2/database_seed
+- Creer base/data/sprint7/init_sprint7.sql avec cas de split obligatoires.
+- Inclure au moins ces jeux :
+  - v1=8, v2=3 ; r1=6, r2=4, r3=3
+  - v1=8, v2=3 ; r1=6, r4=5, r2=4, r3=3
+  - r=23 avec vehicules 13, 8, 6 pour valider le "plus proche" sur le reste
+- Ajouter script de reset+seed sprint7 si necessaire.
+
+CRITERES D'ACCEPTATION
+- Une reservation > capacite max vehicule n'est plus automatiquement non assignee : elle est splitee si possible.
+- Le tri reservation DESC est respecte.
+- Le tri vehicule est applique en 2 phases : DESC en recuperation, puis "plus proche" au moment de la decision d'assignation.
+- Le choix vehicule "plus proche" est respecte sur chaque reste de passagers.
+- Le remplissage d'un vehicule entame est tente en priorite avant de passer au suivant.
+- Les reports de passagers restants fonctionnent vers le regroupement suivant.
+- L'UI montre explicitement les splits et les restes.
