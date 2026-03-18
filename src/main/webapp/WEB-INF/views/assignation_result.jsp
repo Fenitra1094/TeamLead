@@ -7,6 +7,7 @@
 <%@ page import="java.util.Set" %>
 <%@ page import="java.util.Map" %>
 <%@ page import="java.util.LinkedHashMap" %>
+<%@ page import="java.util.LinkedHashSet" %>
 <%@ page import="java.time.Duration" %>
 <%@ page import="java.lang.reflect.Method" %>
 <%@ page import="java.time.LocalDateTime" %>
@@ -29,6 +30,13 @@
             return null;
         }
         return value.truncatedTo(ChronoUnit.MINUTES);
+    }
+
+    private boolean isInInterval(LocalDateTime value, LocalDateTime start, LocalDateTime end) {
+        if (value == null || start == null || end == null) {
+            return false;
+        }
+        return !value.isBefore(start) && value.isBefore(end);
     }
 
     private Object invokeGetter(Object target, String methodName) {
@@ -92,17 +100,6 @@
         vehiculesNonUtilises = new ArrayList<Vehicule>();
     }
 
-    Set<LocalDateTime> groupesVol = new HashSet<LocalDateTime>();
-    for (Assignation assignation : assignations) {
-        if (assignation == null || assignation.getReservation() == null) {
-            continue;
-        }
-        LocalDateTime arrivee = assignation.getReservation().getDateHeureArrive();
-        if (arrivee != null) {
-            groupesVol.add(toMinute(arrivee));
-        }
-    }
-
     int totalReservationsTraitees = assignations.size() + nonAssignees.size();
     int kmTotaux = 0;
     Map<Integer, Integer> nbTrajetsParVehicule = new LinkedHashMap<Integer, Integer>();
@@ -163,100 +160,200 @@
 
     <section class="card">
         <h2>Groupes de depart (Temps d'attente)</h2>
-        <c:if test="${empty groupes}">
+        <% if (groupes.isEmpty()) { %>
             <div class="alert warning">Aucun groupe calcule pour cette date.</div>
-        </c:if>
-        <c:forEach var="groupe" items="${groupes}">
-            <div class="card">
-                <h3>Groupe @ ${groupe.heureDepartGroupe}</h3>
-                <p>Temps d'attente : ${groupe.tempsAttenteMinutes} min</p>
-                <table>
-                    <thead>
-                    <tr>
-                        <th>Reservation</th>
-                        <th>Hotel</th>
-                        <th>Passagers</th>
-                    </tr>
-                    </thead>
-                    <tbody>
-                    <c:forEach var="r" items="${groupe.reservations}">
-                        <tr>
-                            <td>${r.idReservation}</td>
-                            <td><c:out value="${r.hotel.nom}" default="-" /></td>
-                            <td>${r.nbPassager}</td>
-                        </tr>
-                    </c:forEach>
-                    </tbody>
-                </table>
-            </div>
-        </c:forEach>
-    </section>
-
-    <section class="card">
-        <h2>Trajets et assignations</h2>
-        <% if (trajets.isEmpty()) { %>
-            <div class="alert warning">Aucun trajet detaille n'a ete retourne.</div>
         <% } else {
-               int numeroTrajet = 0;
+               Map<Integer, Trajet> trajetsParId = new LinkedHashMap<Integer, Trajet>();
                for (Trajet trajet : trajets) {
-                   numeroTrajet++;
-                   Vehicule vehicule = trajet.getVehicule();
-                   int distanceTotaleTrajet = 0;
-                   List<TrajetEtape> etapes = trajet.getEtapes();
-                   if (etapes != null) {
-                       for (TrajetEtape etape : etapes) {
-                           if (etape != null) {
-                               distanceTotaleTrajet += etape.getDistanceDepuisPrecedent();
-                           }
+                   if (trajet != null) {
+                       trajetsParId.put(trajet.getIdTrajet(), trajet);
+                   }
+               }
+
+               Set<Integer> reservationsDejaRattachees = new HashSet<Integer>();
+               Set<Integer> reportsEnAttente = new LinkedHashSet<Integer>();
+               for (int i = 0; i < groupes.size(); i++) {
+                   GroupeTemps groupe = groupes.get(i);
+                   int numeroGroupe = i + 1;
+                   boolean dernierGroupe = (i == groupes.size() - 1);
+                   List<Reservation> reservationsGroupe = groupe != null && groupe.getReservations() != null
+                       ? groupe.getReservations()
+                       : new ArrayList<Reservation>();
+
+                   LocalDateTime debutIntervalle = groupe != null ? toMinute(groupe.getHeureDepartGroupe()) : null;
+                   int attenteMinutes = groupe != null ? groupe.getTempsAttenteMinutes() : 0;
+                   LocalDateTime finIntervalle = debutIntervalle != null ? debutIntervalle.plusMinutes(attenteMinutes) : null;
+
+                   Set<Integer> reservationsGroupeIds = new LinkedHashSet<Integer>();
+                   for (Reservation reservation : reservationsGroupe) {
+                       if (reservation != null) {
+                           reservationsGroupeIds.add(reservation.getIdReservation());
                        }
                    }
-                   long dureeMinutes = 0;
-                   if (trajet.getDateHeureDepart() != null && trajet.getDateHeureRetour() != null) {
-                       dureeMinutes = Duration.between(trajet.getDateHeureDepart(), trajet.getDateHeureRetour()).toMinutes();
+
+                   Set<Integer> lotIds = new LinkedHashSet<Integer>(reportsEnAttente);
+                   lotIds.addAll(reservationsGroupeIds);
+
+                   List<Assignation> assignationsGroupe = new ArrayList<Assignation>();
+                   Set<Integer> reservationsAssigneesLot = new LinkedHashSet<Integer>();
+                   for (Assignation assignation : assignations) {
+                       if (assignation == null || assignation.getReservation() == null) {
+                           continue;
+                       }
+
+                       int idReservation = assignation.getReservation().getIdReservation();
+                       if (!lotIds.contains(idReservation) || reservationsDejaRattachees.contains(idReservation)) {
+                           continue;
+                       }
+
+                       LocalDateTime dateTraitement = toMinute(assignation.getDateHeureDepart());
+                       boolean traiteDansCeGroupe = isInInterval(dateTraitement, debutIntervalle, finIntervalle);
+                       if (!traiteDansCeGroupe && !dernierGroupe) {
+                           continue;
+                       }
+
+                       assignationsGroupe.add(assignation);
+                       reservationsAssigneesLot.add(idReservation);
+                       reservationsDejaRattachees.add(idReservation);
                    }
+
+                   Set<Integer> nouveauReport = new LinkedHashSet<Integer>(lotIds);
+                   nouveauReport.removeAll(reservationsAssigneesLot);
+                   reportsEnAttente = nouveauReport;
+
+                   Map<Integer, List<Assignation>> assignationsParTrajet = new LinkedHashMap<Integer, List<Assignation>>();
+                   for (Assignation assignation : assignationsGroupe) {
+                       Integer idTrajet = assignation.getIdTrajet();
+                       if (idTrajet == null || idTrajet <= 0) {
+                           continue;
+                       }
+                       List<Assignation> liste = assignationsParTrajet.get(idTrajet);
+                       if (liste == null) {
+                           liste = new ArrayList<Assignation>();
+                           assignationsParTrajet.put(idTrajet, liste);
+                       }
+                       liste.add(assignation);
+                   }
+
+                   int nbReservations = reservationsGroupeIds.size();
+                   int nbAssignees = 0;
+                   for (Integer idReservation : reservationsGroupeIds) {
+                       if (reservationsAssigneesLot.contains(idReservation)) {
+                           nbAssignees++;
+                       }
+                   }
+                   int nbNonAssignees = Math.max(0, nbReservations - nbAssignees);
         %>
-            <div class="card trajet-block">
-                <h3>[Trajet #<%= numeroTrajet %> : <%= vehicule != null ? safe(vehicule.getReference()) : "V-?" %> (<%= vehicule != null ? vehicule.getNbPlace() : "?" %>p, <%= vehicule != null ? safe(vehicule.getTypeVehicule()) : "-" %>)]</h3>
-                <p>Depart <%= safe(trajet.getDateHeureDepart()) %> -> Retour <%= safe(trajet.getDateHeureRetour()) %></p>
-                <p>Distance : <%= distanceTotaleTrajet %> km | Duree : <%= dureeMinutes %> min</p>
-
-                <div class="route-line">
-                    <strong>Itineraire :</strong>
-                    <span>AER</span>
-                    <% if (etapes == null || etapes.isEmpty()) { %>
-                        <span> -> AER</span>
-                    <% } else {
-                           for (TrajetEtape etape : etapes) {
-                               Hotel hotel = etape.getHotel();
-                    %>
-                        <span> --<%= etape.getDistanceDepuisPrecedent() %>km--> <%= hotel != null ? safe(hotel.getNom()) : "HOTEL" %></span>
-                    <%     } %>
-                        <span> --> AER</span>
-                    <% } %>
-                </div>
-
+            <div class="card">
+                <h3>Groupe #<%= numeroGroupe %> @ <%= safe(debutIntervalle) %></h3>
                 <p class="meta-line">
-                    <strong>Reservations :</strong>
-                    <% boolean hasAssignation = false;
-                       for (Assignation a : assignations) {
-                           if (a.getIdTrajet() != trajet.getIdTrajet()) {
-                               continue;
-                           }
-                           hasAssignation = true;
-                           Reservation r = a.getReservation();
-                           String hotelNom = (r != null && r.getHotel() != null) ? r.getHotel().getNom() : "-";
-                    %>
-                        <span class="trip-chip">R<%= r != null ? r.getIdReservation() : "-" %> (<%= r != null ? r.getNbPassager() : "-" %>p, <%= safe(hotelNom) %>)</span>
-                    <% }
-                       if (!hasAssignation) {
-                    %>
-                        <span>Aucune reservation liee a ce trajet.</span>
-                    <% } %>
+                    Intervalle: <%= safe(debutIntervalle) %> -> <%= safe(finIntervalle) %>
+                    | Duree: <%= attenteMinutes %> min
+                    | Reservations: <%= nbReservations %>
+                    | Assignees: <%= nbAssignees %>
+                    | Non assignees: <%= nbNonAssignees %>
                 </p>
+                <p>Reportees en entree : <%= lotIds.size() - reservationsGroupeIds.size() %></p>
+
+                <% if (reservationsGroupe.isEmpty()) { %>
+                    <div class="alert warning">Aucune reservation dans ce groupe.</div>
+                <% } else { %>
+                    <table>
+                        <thead>
+                        <tr>
+                            <th>Reservation</th>
+                            <th>Hotel</th>
+                            <th>Passagers</th>
+                            <th>Etat</th>
+                        </tr>
+                        </thead>
+                        <tbody>
+                        <% for (Reservation reservation : reservationsGroupe) {
+                               if (reservation == null) {
+                                   continue;
+                               }
+                               boolean assignee = reservationsAssigneesLot.contains(reservation.getIdReservation());
+                        %>
+                            <tr>
+                                <td><%= reservation.getIdReservation() %></td>
+                                <td><%= reservation.getHotel() != null ? safe(reservation.getHotel().getNom()) : "-" %></td>
+                                <td><%= reservation.getNbPassager() %></td>
+                                <td><%= assignee ? "Assignee" : "Reportee / Non assignee" %></td>
+                            </tr>
+                        <% } %>
+                        </tbody>
+                    </table>
+                <% } %>
+
+                <div class="stack" style="margin-top:12px;">
+                    <h4>Trajets et assignations du groupe</h4>
+                    <% if (assignationsParTrajet.isEmpty()) { %>
+                        <div class="alert warning">Aucun trajet associe a ce groupe (y compris les reservations reportees).</div>
+                    <% } else {
+                           int numeroTrajetGroupe = 0;
+                           for (Map.Entry<Integer, List<Assignation>> entry : assignationsParTrajet.entrySet()) {
+                               Integer idTrajet = entry.getKey();
+                               List<Assignation> assignationsTrajet = entry.getValue();
+                               Trajet trajet = trajetsParId.get(idTrajet);
+                               numeroTrajetGroupe++;
+
+                               Vehicule vehicule = trajet != null ? trajet.getVehicule() : null;
+                               int distanceTotaleTrajet = 0;
+                               long dureeMinutes = 0;
+                               List<TrajetEtape> etapes = trajet != null ? trajet.getEtapes() : null;
+                               if (etapes != null) {
+                                   for (TrajetEtape etape : etapes) {
+                                       if (etape != null) {
+                                           distanceTotaleTrajet += etape.getDistanceDepuisPrecedent();
+                                       }
+                                   }
+                               }
+                               if (trajet != null && trajet.getDateHeureDepart() != null && trajet.getDateHeureRetour() != null) {
+                                   dureeMinutes = Duration.between(trajet.getDateHeureDepart(), trajet.getDateHeureRetour()).toMinutes();
+                               }
+                    %>
+                        <div class="card trajet-block">
+                            <h3>[Trajet #<%= numeroTrajetGroupe %> : <%= vehicule != null ? safe(vehicule.getReference()) : "V-?" %> (<%= vehicule != null ? vehicule.getNbPlace() : "?" %>p, <%= vehicule != null ? safe(vehicule.getTypeVehicule()) : "-" %>)]</h3>
+                            <p>Depart <%= trajet != null ? safe(trajet.getDateHeureDepart()) : "-" %> -> Retour <%= trajet != null ? safe(trajet.getDateHeureRetour()) : "-" %></p>
+                            <p>Distance : <%= distanceTotaleTrajet %> km | Duree : <%= dureeMinutes %> min</p>
+
+                            <div class="route-line">
+                                <strong>Itineraire :</strong>
+                                <span>AEROPORT</span>
+                                <% Set<String> hotelsAffiches = new LinkedHashSet<String>();
+                                   if (etapes != null && !etapes.isEmpty()) {
+                                       for (TrajetEtape etape : etapes) {
+                                           if (etape == null) {
+                                               continue;
+                                           }
+                                           Hotel hotel = etape.getHotel();
+                                           String hotelNom = hotel != null ? safe(hotel.getNom()) : "HOTEL";
+                                           if (hotelsAffiches.contains(hotelNom)) {
+                                               continue;
+                                           }
+                                           hotelsAffiches.add(hotelNom);
+                                %>
+                                    <span> --<%= etape.getDistanceDepuisPrecedent() %>km--> <%= hotelNom %></span>
+                                <%     }
+                                   } %>
+                            </div>
+
+                            <p class="meta-line">
+                                <strong>Reservations :</strong>
+                                <% for (Assignation assignation : assignationsTrajet) {
+                                       Reservation reservation = assignation.getReservation();
+                                       String hotelNom = (reservation != null && reservation.getHotel() != null) ? reservation.getHotel().getNom() : "-";
+                                %>
+                                    <span class="trip-chip">R<%= reservation != null ? reservation.getIdReservation() : "-" %> (<%= reservation != null ? reservation.getNbPassager() : "-" %>p, <%= safe(hotelNom) %>)</span>
+                                <% } %>
+                            </p>
+                        </div>
+                    <%     }
+                       } %>
+                </div>
             </div>
-        <%   }
-           }
-        %>
+        <%     }
+           } %>
     </section>
 
     <section class="card">

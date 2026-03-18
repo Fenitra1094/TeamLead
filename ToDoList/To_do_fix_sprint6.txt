@@ -1,0 +1,71 @@
+Fix :
+DEV2 :
+Branche 1 : sprint6/fix/2/assignation_result
+   assignation_result.jsp : 
+        Probleme 0 : 
+           Ligne 88 : new LinkedHashSet<Vehicule>() ne compile pas
+           Cause : LinkedHashSet n'est pas importé au début du fichier
+           Message erreur : LinkedHashSet cannot be resolved to a type
+        
+        Solution :
+           Ajouter l'import manquant à la ligne 10 (après l'import LinkedHashMap) :
+                <%@ page import="java.util.LinkedHashSet" %>
+
+        Probleme 1 :
+           Resume de groupe incomplet (intervalle, duree, reservations, assignees, non assignees absent en bas du groupe)
+        Solution :
+           Ajouter en bas de chaque groupe :
+                Intervalle: debut -> fin | Duree: X min | Reservations: N | Assignees: A | Non assignees: B
+
+        Probleme 2 :
+           Trajets et assignations affiches globalement, sans lien clair avec le groupe de traitement
+        Solution :
+           Integrer l'affichage "Trajets et assignations" dans chaque bloc groupe,
+           avec rattachement par simulation du report (reservations du groupe + reportees)
+
+        Probleme 3 : 
+           Itineraire affiche le nom de l'hotel et force AER au debut/fin
+        Solution :
+           Enlever AER du Fin 
+            Mettez aieroport comme debut d'un itineraire par defaut 
+            il ne faut pas faire de doublon
+
+        Probleme 4 :
+           Appartenance de groupe melangee :
+           un trajet/assignation reporte puis traite au groupe suivant s'affiche encore dans le groupe precedent.
+           Exemple observe : groupe #2 affiche une assignation qui doit etre rattachee au groupe #3.
+        Solution :
+           Rattacher les assignations/trajets au groupe de traitement final (groupe dans lequel elles sont effectivement traitees),
+           pas seulement au groupe d'origine de la reservation.
+           Si une reservation est reportee, elle ne doit plus etre marquee "Assignee" dans le groupe precedent.
+
+        Probleme 5 :
+           Placement et repetition de l'information d'intervalle portent a confusion.
+        Solution :
+           Afficher la ligne
+             Intervalle: ... | Duree: ... | Reservations: ... | Assignees: ... | Non assignees: ...
+           juste sous le titre du groupe (en tete de bloc),
+           puis supprimer la duplication de cette meme information en bas du groupe.
+
+           
+        IMPORTANT : Enlever tout information doublon
+
+
+
+azafady akia fa mbola miampy kely an tony nendry, mbola ao anatinle branche iray iny ihany:
+Probleme 4 :
+           Appartenance de groupe melangee :
+           un trajet/assignation reporte puis traite au groupe suivant s'affiche encore dans le groupe precedent.
+           Exemple observe : groupe #2 affiche une assignation qui doit etre rattachee au groupe #3.
+        Solution :
+           Rattacher les assignations/trajets au groupe de traitement final (groupe dans lequel elles sont effectivement traitees),
+           pas seulement au groupe d'origine de la reservation.
+           Si une reservation est reportee, elle ne doit plus etre marquee "Assignee" dans le groupe precedent.
+
+        Probleme 5 :
+           Placement et repetition de l'information d'intervalle portent a confusion.
+        Solution :
+           Afficher la ligne
+             Intervalle: ... | Duree: ... | Reservations: ... | Assignees: ... | Non assignees: ...
+           juste sous le titre du groupe (en tete de bloc),
+           puis supprimer la duplication de cette meme information en bas du groupe.
