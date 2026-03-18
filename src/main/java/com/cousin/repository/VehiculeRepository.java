@@ -221,4 +221,105 @@ public class VehiculeRepository {
 
         return vehicules;
     }
+
+    /**
+     * Retourne les véhicules candidats pour un split de réservation.
+     * ÉTAPE A : Récupère et trie les véhicules en DESC par capacité, sans filtrage strict.
+     * L'ÉTAPE B (sélection "plus proche") se fera dans AssignationService.
+     * 
+     * Contrairement à getVehiculesDisponible, cette méthode retourne de possibles
+     * candidats même si leur capacité < passagersRestants (pour supporter le split).
+     * 
+     * @param passagersRestants Nombre de passagers restants à assigner
+     * @param date Date d'assignation demandée
+     * @param debutGroupe Heure actuelle de départ du groupe
+     * @param finGroupe Heure de fin du groupe (première réservation + temps attente)
+     * @param connection Connexion existante (pour la transaction)
+     * @return Liste des véhicules candidats triés par capacité DESC, 
+     *         puis par trajet_count ASC, diesel avant essence, et random
+     */
+    public List<Vehicule> getVehiculesCandidatsPourSplit(int passagersRestants, 
+            java.time.LocalDate date, java.time.LocalDateTime debutGroupe, 
+            java.time.LocalDateTime finGroupe, Connection connection) throws SQLException {
+        
+        // ============================================
+        // Même logique que getVehiculesDisponible
+        // MAIS sans le filtre "nbPlace >= passagersRestants"
+        // et tri différent : capacité DESC en priorité
+        // ============================================
+        
+        String sql = "SELECT v.Id_Vehicule, v.Reference, v.nbPlace, v.TypeVehicule, " +
+                "COALESCE(tc.trajet_count, 0) AS trajet_count, " +
+                "COALESCE(tc.dernier_retour, ?) AS dernier_retour " +
+                "FROM dev.Vehicule v " +
+                "LEFT JOIN (" +
+                "    SELECT t.Id_Vehicule, " +
+                "           COUNT(t.Id_Trajet) AS trajet_count, " +
+                "           MAX(t.date_heure_retour) AS dernier_retour " +
+                "    FROM dev.Trajet t " +
+                "    WHERE DATE(t.date_assignation) = ? " +
+                "    GROUP BY t.Id_Vehicule" +
+                ") tc ON tc.Id_Vehicule = v.Id_Vehicule " +
+                "WHERE " +
+                "    COALESCE(tc.dernier_retour, ?) <= ? " +
+                "    OR " +
+                "    (COALESCE(tc.dernier_retour, ?) > ? AND COALESCE(tc.dernier_retour, ?) <= ?)" +
+                " " +
+                "ORDER BY v.nbPlace DESC, " +
+                "trajet_count ASC, " +
+                "CASE WHEN v.TypeVehicule = 'D' THEN 0 ELSE 1 END ASC, " +
+                "RANDOM()";
+
+        return executeVehiculeAvailabilityQueryForSplit(connection, sql, date, debutGroupe, finGroupe);
+    }
+
+    /**
+     * Exécute la requête pour la récupération des candidats de split.
+     * Similaire à executeVehiculeAvailabilityQuery mais sans paramètre nbPassagers.
+     */
+    private List<Vehicule> executeVehiculeAvailabilityQueryForSplit(Connection connection, String sql,
+                                                                      java.time.LocalDate date,
+                                                                      java.time.LocalDateTime debutGroupe,
+                                                                      java.time.LocalDateTime finGroupe) throws SQLException {
+        List<Vehicule> vehicules = new ArrayList<>();
+        
+        try (PreparedStatement statement = connection.prepareStatement(sql)) {
+            // Pour les COALESCE par défaut (si aucun trajet ce jour) = minuit du jour
+            statement.setTimestamp(1, java.sql.Timestamp.valueOf(
+                java.time.LocalDateTime.of(date, java.time.LocalTime.MIDNIGHT)));
+            
+            // Dans la sous-requête
+            statement.setDate(2, java.sql.Date.valueOf(date));
+            
+            // Cas A : COALESCE(tc.dernier_retour, ?) <= debutGroupe
+            statement.setTimestamp(3, java.sql.Timestamp.valueOf(
+                java.time.LocalDateTime.of(date, java.time.LocalTime.MIDNIGHT)));
+            statement.setTimestamp(4, java.sql.Timestamp.valueOf(debutGroupe));
+            
+            // Cas B : première partie (> debutGroupe)
+            statement.setTimestamp(5, java.sql.Timestamp.valueOf(
+                java.time.LocalDateTime.of(date, java.time.LocalTime.MIDNIGHT)));
+            statement.setTimestamp(6, java.sql.Timestamp.valueOf(debutGroupe));
+            
+            // Cas B : deuxième partie (<= finGroupe)
+            statement.setTimestamp(7, java.sql.Timestamp.valueOf(
+                java.time.LocalDateTime.of(date, java.time.LocalTime.MIDNIGHT)));
+            statement.setTimestamp(8, java.sql.Timestamp.valueOf(finGroupe));
+
+            try (ResultSet resultSet = statement.executeQuery()) {
+                while (resultSet.next()) {
+                    Vehicule vehicule = new Vehicule();
+                    vehicule.setIdVehicule(resultSet.getInt("Id_Vehicule"));
+                    vehicule.setReference(resultSet.getString("Reference"));
+                    vehicule.setNbPlace(resultSet.getInt("nbPlace"));
+                    vehicule.setTypeVehicule(resultSet.getString("TypeVehicule"));
+                    vehicule.setTrajetCount(resultSet.getInt("trajet_count"));
+                    vehicule.setDernierRetour(resultSet.getTimestamp("dernier_retour").toLocalDateTime());
+                    vehicules.add(vehicule);
+                }
+            }
+        }
+
+        return vehicules;
+    }
 }
