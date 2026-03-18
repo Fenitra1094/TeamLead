@@ -49,23 +49,3 @@ Branche 1 : sprint6/fix/2/assignation_result
 
            
         IMPORTANT : Enlever tout information doublon
-
-
-
-azafady akia fa mbola miampy kely an tony nendry, mbola ao anatinle branche iray iny ihany:
-Probleme 4 :
-           Appartenance de groupe melangee :
-           un trajet/assignation reporte puis traite au groupe suivant s'affiche encore dans le groupe precedent.
-           Exemple observe : groupe #2 affiche une assignation qui doit etre rattachee au groupe #3.
-        Solution :
-           Rattacher les assignations/trajets au groupe de traitement final (groupe dans lequel elles sont effectivement traitees),
-           pas seulement au groupe d'origine de la reservation.
-           Si une reservation est reportee, elle ne doit plus etre marquee "Assignee" dans le groupe precedent.
-
-        Probleme 5 :
-           Placement et repetition de l'information d'intervalle portent a confusion.
-        Solution :
-           Afficher la ligne
-             Intervalle: ... | Duree: ... | Reservations: ... | Assignees: ... | Non assignees: ...
-           juste sous le titre du groupe (en tete de bloc),
-           puis supprimer la duplication de cette meme information en bas du groupe.
