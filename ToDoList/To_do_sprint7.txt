@@ -1,10 +1,10 @@
 SPRINT 7 - Division / Split des reservations + remplissage intelligent des vehicules
 
 ROLE :
-Team Lead - ETU 3371
+Team Lead - ETU 3273
 
 DEV 1 - ETU 3265
-DEV 2 - ETU 3273
+DEV 2 - ETU 3371
 
 Tout sur BackOffice
 
@@ -173,3 +173,52 @@ CRITERES D'ACCEPTATION
     - Cas B: 9 passagers, véhicules 5 + 2 -> assignés 7, non assignés 2.
     - Cas C: aucun véhicule dispo -> non assignés = total demandé.
     - Critère de fin: les 3 cas passent et valident les sommes + l’appartenance au bon groupe.
+
+
+TO DO RESTANT - Branche 1 : sprint7/1/vehicule_repository
+
+Objectif restant à satisfaire
+
+Faire en sorte que cette méthode ne fasse que l’Étape A (récupération + tri DESC capacité).
+Laisser 100% de l’Étape B au service d’assignation.
+Entrées
+
+Signature à conserver telle quelle:
+getVehiculesCandidatsPourSplit(int passagersRestants, LocalDate date, LocalDateTime debutGroupe, LocalDateTime finGroupe, Connection conn)
+Garder passagersRestants en paramètre (contrat Sprint 7), même si non utilisé au niveau SQL repository.
+Tri cible des candidats
+
+Corriger le SQL pour respecter strictement Étape A:
+ORDER BY v.nbPlace DESC
+Retirer du ORDER BY repository:
+trajet_count ASC
+diesel avant essence
+RANDOM()
+Ajouter un tie-break technique stable optionnel pour reproductibilité:
+Id_Vehicule ASC (ou Reference ASC)
+Cas sans capacité suffisante
+
+Déjà correct côté repository: ne pas filtrer avec v.nbPlace >= passagersRestants.
+Vérifier que la requête retourne bien aussi les véhicules nbPlace < passagersRestants (si disponibles temporellement).
+Séparation Étape A / Étape B (obligatoire)
+
+Repository = disponibilité temporelle + tri capacité DESC uniquement.
+Service = sélection métier “plus proche”:
+priorité capacite >= passagersRestants
+écart minimal
+trajet_count
+diesel
+random
+Fallback service si aucun >=:
+prendre le plus proche en dessous (DESC) pour split immédiat.
+Ajustements de code à faire
+
+Mettre à jour le commentaire JavaDoc pour supprimer la promesse “trajet_count/diesel/random” au niveau repository.
+Clarifier explicitement dans JavaDoc: “Étape B réalisée dans AssignationService”.
+Vérifier que la méthode actuelle executeVehiculeAvailabilityQueryForSplit reste compatible après simplification du ORDER BY.
+Validation minimale attendue (Branche 1)
+
+Test 1: la liste retournée est triée par capacité DESC.
+Test 2: la liste contient des véhicules en dessous du besoin (< passagersRestants) s’ils sont disponibles.
+Test 3: aucun tri métier “plus proche/diesel/random” n’est appliqué dans repository.
+Test 4: disponibilité temporelle respecte bien début/fin de groupe.
