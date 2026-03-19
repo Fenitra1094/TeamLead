@@ -80,6 +80,12 @@ INSERT INTO dev.Vehicule (Reference, nbPlace, TypeVehicule) VALUES
 ('S7-VH-06E', 6, 'E'),
 ('S7-VH-03D', 3, 'D');
 
+
+INSERT INTO dev.Vehicule (Reference, nbPlace, TypeVehicule) VALUES
+('S1-TEST-03D', 10, 'D');
+
+
+
 -- 4) Cas de test reservations
 -- Important: executer l'assignation date par date pour observer chaque scenario.
 
@@ -95,6 +101,14 @@ INSERT INTO dev.reservation (DateHeureArrive, idClient, nbPassager, Id_Hotel) VA
 ('2026-04-10 04:11:00', 'S7-A-CLI-011', 11, (SELECT Id_Hotel FROM dev.Hotel WHERE code='NOV')),
 ('2026-04-10 04:07:00', 'S7-A-CLI-023', 23, (SELECT Id_Hotel FROM dev.Hotel WHERE code='PAN')),
 ('2026-04-10 04:18:00', 'S7-A-CLI-005', 5,  (SELECT Id_Hotel FROM dev.Hotel WHERE code='HBS'));
+
+
+INSERT INTO dev.reservation (DateHeureArrive, idClient, nbPassager, Id_Hotel) VALUES
+('2026-04-15 04:11:00', 'S7-A-CLI-011', 8, (SELECT Id_Hotel FROM dev.Hotel WHERE code='NOV')),
+('2026-04-15 04:07:00', 'S7-A-CLI-023', 4, (SELECT Id_Hotel FROM dev.Hotel WHERE code='PAN')),
+('2026-04-15 04:18:00', 'S7-A-CLI-005', 3,  (SELECT Id_Hotel FROM dev.Hotel WHERE code='HBS'));
+
+
 
 -- =====================================================================
 -- CAS B - Remplissage d'un vehicule entame avec reservations "du bas"
