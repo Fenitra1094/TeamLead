@@ -504,8 +504,14 @@
                    }
                }
 
+
                // Reports effectivement transmis depuis le groupe precedent vers le groupe courant.
                Map<Integer, Integer> reportsVersGroupeCourant = new LinkedHashMap<Integer, Integer>();
+
+               // IMPORTANT: restantsAvantGroupe commence VIDE.
+               // Il sera rempli AU FIL des groupes avec les vrais restants.
+               // Cela evite de compter les reservations futures comme "reportees en entree"
+               Map<Integer, Integer> restantsAvantGroupe = new LinkedHashMap<Integer, Integer>();
 
                for (int i = 0; i < groupes.size(); i++) {
                    GroupeTemps groupe = groupes.get(i);
@@ -530,6 +536,7 @@
                    Map<Integer, Integer> reportsEnEntreeParReservation = new LinkedHashMap<Integer, Integer>();
                    int passagersReportesEnEntree = 0;
                    for (Map.Entry<Integer, Integer> entry : reportsVersGroupeCourant.entrySet()) {
+                   for (Map.Entry<Integer, Integer> entry : restantsAvantGroupe.entrySet()) {
                        Integer idReservation = entry.getKey();
                        int restant = Math.max(0, entry.getValue());
                        if (idReservation == null || restant <= 0) {
@@ -538,6 +545,11 @@
                        reportsEnEntreeIds.add(idReservation);
                        reportsEnEntreeParReservation.put(idReservation, restant);
                        passagersReportesEnEntree += restant;
+                       if (reservationsGroupeIds.contains(idReservation)) {
+                           reportsEnEntreeIds.add(idReservation);
+                           reportsEnEntreeParReservation.put(idReservation, restant);
+                           passagersReportesEnEntree += restant;
+                       }
                    }
 
                    Set<Integer> lotIds = new LinkedHashSet<Integer>(reportsEnEntreeIds);
@@ -603,6 +615,10 @@
                        }
                    }
                    reportsVersGroupeCourant = reportsPourGroupeSuivant;
+                       int restantAvant = Math.max(0, restantsAvantGroupe.getOrDefault(idReservation, 0));
+                       int assignesGroupe = Math.max(0, passagersAssignesDansGroupe.getOrDefault(idReservation, 0));
+                       restantsAvantGroupe.put(idReservation, Math.max(0, restantAvant - assignesGroupe));
+                   }
 
                    Set<Integer> reservationsAssigneesLot = new LinkedHashSet<Integer>();
                    for (Map.Entry<Integer, Integer> entry : passagersAssignesDansGroupe.entrySet()) {
