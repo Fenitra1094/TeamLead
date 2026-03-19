@@ -105,9 +105,24 @@ public class AssignationService {
                             List<Vehicule> candidats = vehiculeRepository.getVehiculesCandidatsPourSplit(
                                     passagersRestants, date, dateDepart, finGroupe, connection);
 
-                            // SI candidats vide : marquer comme non assignables
+                            // SI candidats vide : créer assignation "non assignée" avec la quantité exacte
                             if (candidats.isEmpty()) {
-                                reservationsNonAssignees.add(reservationCourante);
+                                Assignation assignationNonAssignee = new Assignation();
+                                assignationNonAssignee.setIdReservation(reservationCourante.getIdReservation());
+                                assignationNonAssignee.setIdVehicule(0);  // 0 = non assigné
+                                assignationNonAssignee.setIdTrajet(null);
+                                assignationNonAssignee.setDateHeureDepart(dateDepart);
+                                assignationNonAssignee.setDateHeureRetour(finGroupe);
+                                assignationNonAssignee.setQuantitePassagersAssignes(passagersRestants);  // Persister le reste exact
+                                assignationNonAssignee.setReservation(reservationCourante);
+
+                                assignationRepository.insertAssignation(assignationNonAssignee, connection);
+                                assignations.add(assignationNonAssignee);
+                                
+                                // Marquer comme non assignée et quitter la boucle
+                                if (!reservationsNonAssignees.contains(reservationCourante)) {
+                                    reservationsNonAssignees.add(reservationCourante);
+                                }
                                 passagersRestants = 0;
                                 break;
                             }

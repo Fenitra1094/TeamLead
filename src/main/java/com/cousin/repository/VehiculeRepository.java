@@ -238,15 +238,37 @@ public class VehiculeRepository {
      * @return Liste des véhicules candidats triés par capacité DESC, 
      *         puis par trajet_count ASC, diesel avant essence, et random
      */
+    /**
+     * Récupère les candidats de véhicules pour le split d'une réservation.
+     * 
+     * ÉTAPE A (Repository) :
+     * - Vérifie la disponibilité temporelle du véhicule sur la plage [debutGroupe, finGroupe]
+     * - Retourne une liste triée par capacité DESC (nbPlace)
+     * - Inclut les véhicules avec nbPlace >= passagersRestants ET les véhicules avec nbPlace < passagersRestants
+     * - Ajoute un tie-break technique (Id_Vehicule ASC) pour garantir reproductibilité
+     * 
+     * ÉTAPE B (Métier - réalisée ensuite dans AssignationService) :
+     * - Sélection du meilleur candidat en fonction de: capacité >= passagersRestants, écart minimal, trajet_count, diesel, random
+     * - Fallback vers ces < passagersRestants si tous les >= sont épuisés
+     * 
+     * @param passagersRestants nombre de passagers à assigner (keepé pour contrat Sprint 7, non utilisé en SQL repository)
+     * @param date date de la réservation
+     * @param debutGroupe heure de début du groupe
+     * @param finGroupe heure de fin du groupe
+     * @param connection connexion à la base de données
+     * @return liste triée par capacité DESC, candidate pour l'étape de sélection métier
+     * @throws SQLException erreur d'accès base de données
+     */
     public List<Vehicule> getVehiculesCandidatsPourSplit(int passagersRestants, 
             java.time.LocalDate date, java.time.LocalDateTime debutGroupe, 
             java.time.LocalDateTime finGroupe, Connection connection) throws SQLException {
         
         // ============================================
+        // ÉTAPE A : Récupération + tri DESC capacité
+        // ============================================
         // Même logique que getVehiculesDisponible
         // MAIS sans le filtre "nbPlace >= passagersRestants"
-        // et tri différent : capacité DESC en priorité
-        // ============================================
+        // Retourne tous les véhicules disponibles temporellement, triés par capacité DESC
         
         String sql = "SELECT v.Id_Vehicule, v.Reference, v.nbPlace, v.TypeVehicule, " +
                 "COALESCE(tc.trajet_count, 0) AS trajet_count, " +
@@ -265,17 +287,23 @@ public class VehiculeRepository {
                 "    OR " +
                 "    (COALESCE(tc.dernier_retour, ?) > ? AND COALESCE(tc.dernier_retour, ?) <= ?)" +
                 " " +
-                "ORDER BY v.nbPlace DESC, " +
-                "trajet_count ASC, " +
-                "CASE WHEN v.TypeVehicule = 'D' THEN 0 ELSE 1 END ASC, " +
-                "RANDOM()";
+                "ORDER BY v.nbPlace DESC, v.Id_Vehicule ASC";
 
         return executeVehiculeAvailabilityQueryForSplit(connection, sql, date, debutGroupe, finGroupe);
     }
 
     /**
      * Exécute la requête pour la récupération des candidats de split.
-     * Similaire à executeVehiculeAvailabilityQuery mais sans paramètre nbPassagers.
+     * Parcourt le ResultSet et mappe les lignes en objets Vehicule.
+     * La sélection métier "plus proche" (Étape B) sera réalisée dans AssignationService.
+     * 
+     * @param connection connexion à la base de données
+     * @param sql requête SQL préparée avec paramètres bind
+     * @param date date de la réservation
+     * @param debutGroupe heure de début du groupe
+     * @param finGroupe heure de fin du groupe
+     * @return liste triée de véhicules candidats
+     * @throws SQLException erreur d'accès base de données
      */
     private List<Vehicule> executeVehiculeAvailabilityQueryForSplit(Connection connection, String sql,
                                                                       java.time.LocalDate date,
