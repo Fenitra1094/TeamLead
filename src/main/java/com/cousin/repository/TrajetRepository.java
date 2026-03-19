@@ -161,4 +161,30 @@ public class TrajetRepository {
 
         return trajets;
     }
+
+    /**
+     * Retourne l'ID du trajet existant pour un véhicule et une date donnés.
+     * Utilisé pour obtenir le trajet quand on a déjà assigné ce même véhicule dans le groupe.
+     * 
+     * @param idVehicule ID du véhicule
+     * @param date Date d'assignation
+     * @param connection Connexion existante (pour la transaction)
+     * @return ID du trajet, ou null si aucun trajet trouvé
+     */
+    public Integer getTrajetIdParVehiculeEtDate(int idVehicule, LocalDate date, Connection connection) throws SQLException {
+        String sql = "SELECT Id_Trajet FROM Trajet WHERE Id_Vehicule = ? AND date_assignation = ? LIMIT 1";
+
+        try (PreparedStatement st = connection.prepareStatement(sql)) {
+            st.setInt(1, idVehicule);
+            st.setDate(2, Date.valueOf(date));
+
+            try (ResultSet rs = st.executeQuery()) {
+                if (rs.next()) {
+                    return rs.getInt("Id_Trajet");
+                }
+            }
+        }
+
+        return null;
+    }
 }

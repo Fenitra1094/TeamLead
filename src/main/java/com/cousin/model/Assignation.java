@@ -9,6 +9,7 @@ public class Assignation {
     private Integer idTrajet;
     private LocalDateTime dateHeureDepart;
     private LocalDateTime dateHeureRetour;
+    private int quantitePassagersAssignes;  // Sprint 7: support des assignations partielles
 
     // Objets liés pour l'affichage
     private Reservation reservation;
@@ -25,6 +26,7 @@ public class Assignation {
         this.idTrajet = idTrajet;
         this.dateHeureDepart = dateHeureDepart;
         this.dateHeureRetour = dateHeureRetour;
+        this.quantitePassagersAssignes = 0;
     }
 
     public int getIdAssignation() {
@@ -89,5 +91,13 @@ public class Assignation {
 
     public void setVehicule(Vehicule vehicule) {
         this.vehicule = vehicule;
+    }
+
+    public int getQuantitePassagersAssignes() {
+        return quantitePassagersAssignes;
+    }
+
+    public void setQuantitePassagersAssignes(int quantitePassagersAssignes) {
+        this.quantitePassagersAssignes = quantitePassagersAssignes;
     }
 }

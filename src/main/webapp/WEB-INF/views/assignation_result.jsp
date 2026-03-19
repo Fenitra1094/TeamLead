@@ -8,6 +8,7 @@
 <%@ page import="java.util.Map" %>
 <%@ page import="java.util.LinkedHashMap" %>
 <%@ page import="java.util.LinkedHashSet" %>
+<%@ page import="java.util.Collections" %>
 <%@ page import="java.time.Duration" %>
 <%@ page import="java.lang.reflect.Method" %>
 <%@ page import="java.time.LocalDateTime" %>
@@ -23,6 +24,20 @@
 <%!
     private String safe(Object value) {
         return value == null ? "-" : String.valueOf(value);
+    }
+
+    private int asInt(Object value) {
+        if (value == null) {
+            return 0;
+        }
+        if (value instanceof Number) {
+            return ((Number) value).intValue();
+        }
+        try {
+            return Integer.parseInt(String.valueOf(value));
+        } catch (NumberFormatException e) {
+            return 0;
+        }
     }
 
     private LocalDateTime toMinute(LocalDateTime value) {
@@ -100,6 +115,63 @@
         vehiculesNonUtilises = new ArrayList<Vehicule>();
     }
 
+    Map<Integer, List<Map<String, Object>>> splitDetailsParReservation = (Map<Integer, List<Map<String, Object>>>) request.getAttribute("splitDetailsParReservation");
+    if (splitDetailsParReservation == null) {
+        splitDetailsParReservation = new LinkedHashMap<Integer, List<Map<String, Object>>>();
+    }
+
+    Map<Integer, Integer> passagersDemandesParReservation = (Map<Integer, Integer>) request.getAttribute("passagersDemandesParReservation");
+    if (passagersDemandesParReservation == null) {
+        passagersDemandesParReservation = new LinkedHashMap<Integer, Integer>();
+    }
+
+    Map<Integer, Integer> passagersAssignesParReservation = (Map<Integer, Integer>) request.getAttribute("passagersAssignesParReservation");
+    if (passagersAssignesParReservation == null) {
+        passagersAssignesParReservation = new LinkedHashMap<Integer, Integer>();
+    }
+
+    Map<Integer, Integer> passagersRestantsParReservation = (Map<Integer, Integer>) request.getAttribute("passagersRestantsParReservation");
+    if (passagersRestantsParReservation == null) {
+        passagersRestantsParReservation = new LinkedHashMap<Integer, Integer>();
+    }
+
+    Map<Integer, Reservation> reservationsParId = new LinkedHashMap<Integer, Reservation>();
+    for (Assignation assignation : assignations) {
+        if (assignation != null && assignation.getReservation() != null) {
+            Reservation reservation = assignation.getReservation();
+            reservationsParId.putIfAbsent(reservation.getIdReservation(), reservation);
+        }
+    }
+    for (GroupeTemps groupe : groupes) {
+        if (groupe == null || groupe.getReservations() == null) {
+            continue;
+        }
+        for (Reservation reservation : groupe.getReservations()) {
+            if (reservation != null) {
+                reservationsParId.putIfAbsent(reservation.getIdReservation(), reservation);
+            }
+        }
+    }
+    for (Reservation reservation : nonAssignees) {
+        if (reservation != null) {
+            reservationsParId.putIfAbsent(reservation.getIdReservation(), reservation);
+        }
+    }
+
+    Set<Integer> reservationsSplitIds = new LinkedHashSet<Integer>();
+    reservationsSplitIds.addAll(passagersDemandesParReservation.keySet());
+    reservationsSplitIds.addAll(passagersAssignesParReservation.keySet());
+    reservationsSplitIds.addAll(passagersRestantsParReservation.keySet());
+    reservationsSplitIds.addAll(splitDetailsParReservation.keySet());
+    for (Reservation reservation : nonAssignees) {
+        if (reservation != null) {
+            reservationsSplitIds.add(reservation.getIdReservation());
+        }
+    }
+
+    List<Integer> reservationsSplitTriees = new ArrayList<Integer>(reservationsSplitIds);
+    Collections.sort(reservationsSplitTriees);
+
     int totalReservationsTraitees = assignations.size() + nonAssignees.size();
     int kmTotaux = 0;
     Map<Integer, Integer> nbTrajetsParVehicule = new LinkedHashMap<Integer, Integer>();
@@ -157,6 +229,101 @@
     <c:if test="${not empty message}">
         <div class="alert success">${message}</div>
     </c:if>
+
+    <section class="card">
+        <h2>Suivi split par reservation</h2>
+        <% if (reservationsSplitTriees.isEmpty()) { %>
+            <div class="alert warning">Aucune reservation a afficher pour le split.</div>
+        <% } else { %>
+            <table class="split-table">
+                <thead>
+                <tr>
+                    <th>Reservation</th>
+                    <th>Hotel</th>
+                    <th>Demande</th>
+                    <th>Assignations partielles (vehicule - passagers)</th>
+                    <th>Restant</th>
+                    <th>Statut</th>
+                </tr>
+                </thead>
+                <tbody>
+                <% for (Integer idReservation : reservationsSplitTriees) {
+                       if (idReservation == null) {
+                           continue;
+                       }
+
+                       Reservation reservationInfo = reservationsParId.get(idReservation);
+                       int demandes = passagersDemandesParReservation.containsKey(idReservation)
+                           ? Math.max(0, passagersDemandesParReservation.get(idReservation))
+                           : (reservationInfo != null ? Math.max(0, reservationInfo.getNbPassager()) : 0);
+                       int assignes = passagersAssignesParReservation.containsKey(idReservation)
+                           ? Math.max(0, passagersAssignesParReservation.get(idReservation))
+                           : 0;
+                       int restants = passagersRestantsParReservation.containsKey(idReservation)
+                           ? Math.max(0, passagersRestantsParReservation.get(idReservation))
+                           : Math.max(0, demandes - assignes);
+
+                       List<Map<String, Object>> details = splitDetailsParReservation.get(idReservation);
+                       int nbFragments = details == null ? 0 : details.size();
+
+                       String statusClass = "split-badge split-full";
+                       String statusLabel = "Assigne complet (1 vehicule)";
+                       if (assignes <= 0) {
+                           statusClass = "split-badge split-none";
+                           statusLabel = "Non assigne";
+                       } else if (restants > 0) {
+                           statusClass = "split-badge split-partial";
+                           statusLabel = "Split partiel";
+                       } else if (nbFragments > 1) {
+                           statusClass = "split-badge split-complete";
+                           statusLabel = "Split complet";
+                       }
+                %>
+                    <tr>
+                        <td>R<%= idReservation %></td>
+                        <td>
+                            <%= reservationInfo != null && reservationInfo.getHotel() != null
+                                    ? safe(reservationInfo.getHotel().getNom())
+                                    : "-" %>
+                        </td>
+                        <td><%= demandes %>p</td>
+                        <td>
+                            <% if (details == null || details.isEmpty()) { %>
+                                <span class="meta-line">Aucune assignation enregistree</span>
+                            <% } else { %>
+                                <ul class="split-list">
+                                    <% for (Map<String, Object> detail : details) {
+                                           if (detail == null) {
+                                               continue;
+                                           }
+                                           String refVehicule = detail.get("vehiculeReference") == null
+                                               ? ""
+                                               : String.valueOf(detail.get("vehiculeReference"));
+                                           int idVehicule = asInt(detail.get("idVehicule"));
+                                           String labelVehicule = refVehicule.trim().isEmpty()
+                                               ? "V" + safe(idVehicule)
+                                               : refVehicule;
+                                           int passagersDetail = Math.max(0, asInt(detail.get("passagersAssignes")));
+                                    %>
+                                        <li><strong><%= safe(labelVehicule) %></strong> : <%= passagersDetail %>p embarques</li>
+                                    <% } %>
+                                </ul>
+                            <% } %>
+                        </td>
+                        <td>
+                            <% if (restants > 0) { %>
+                                <span class="split-remaining"><%= restants %>p reportes / non assignes</span>
+                            <% } else { %>
+                                0p
+                            <% } %>
+                        </td>
+                        <td><span class="<%= statusClass %>"><%= statusLabel %></span></td>
+                    </tr>
+                <% } %>
+                </tbody>
+            </table>
+        <% } %>
+    </section>
 
     <section class="card">
         <h2>Groupes de depart (Temps d'attente)</h2>
@@ -340,12 +507,7 @@
 
                             <p class="meta-line">
                                 <strong>Reservations :</strong>
-                                <% for (Assignation assignation : assignationsTrajet) {
-                                       Reservation reservation = assignation.getReservation();
-                                       String hotelNom = (reservation != null && reservation.getHotel() != null) ? reservation.getHotel().getNom() : "-";
-                                %>
-                                    <span class="trip-chip">R<%= reservation != null ? reservation.getIdReservation() : "-" %> (<%= reservation != null ? reservation.getNbPassager() : "-" %>p, <%= safe(hotelNom) %>)</span>
-                                <% } %>
+                                Voir le bloc <em>Suivi split par reservation</em> pour le detail par vehicule.
                             </p>
                         </div>
                     <%     }
@@ -422,28 +584,7 @@
     <c:if test="${not empty reservationsNonAssignees}">
         <section class="card">
             <h3>Reservations non assignees (${fn:length(reservationsNonAssignees)})</h3>
-            <table>
-                <thead>
-                <tr>
-                    <th>ID Reservation</th>
-                    <th>Hotel</th>
-                    <th>Nb Passagers</th>
-                    <th>Date/Heure Arrivee</th>
-                    <th>Raison</th>
-                </tr>
-                </thead>
-                <tbody>
-                <c:forEach var="r" items="${reservationsNonAssignees}">
-                    <tr>
-                        <td>${r.idReservation}</td>
-                        <td><c:out value="${r.hotel.nom}" default="-" /></td>
-                        <td>${r.nbPassager}</td>
-                        <td>${r.dateHeureArrive}</td>
-                        <td>Pas de vehicule disponible</td>
-                    </tr>
-                </c:forEach>
-                </tbody>
-            </table>
+            <p class="meta-line">Le restant detaille est visible dans le bloc <strong>Suivi split par reservation</strong>.</p>
         </section>
     </c:if>
 
