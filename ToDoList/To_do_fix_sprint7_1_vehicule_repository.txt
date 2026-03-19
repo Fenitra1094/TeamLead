@@ -1,0 +1,65 @@
+Fichier à modifier
+VehiculeRepository.java
+
+Supprimer les anciens blocs JavaDoc contradictoires juste au-dessus de la méthode getVehiculesCandidatsPourSplit,
+ puis coller ce JavaDoc unique
+ /**
+
+Récupère les véhicules candidats pour le split d'une réservation.
+Rôle Repository = Étape A uniquement :
+Vérifie la disponibilité temporelle sur [debutGroupe, finGroupe]
+Retourne les candidats triés par capacité DESC
+Ajoute un tie-break technique stable (Id_Vehicule ASC)
+Rôle Service (AssignationService) = Étape B :
+Priorité capacité >= passagersRestants
+Plus proche (écart minimal)
+Tie-breakers métier : trajet_count, diesel, random
+Fallback vers capacité inférieure si nécessaire pour split immédiat
+
+Important :
+passagersRestants est conservé dans la signature pour le contrat Sprint 7
+pas de tri métier en SQL repository
+@param passagersRestants nombre de passagers restants à assigner (contrat Sprint 7)
+@param date date d'assignation
+@param debutGroupe début de la fenêtre de groupe
+@param finGroupe fin de la fenêtre de groupe
+
+@param connection connexion SQL active
+@return liste de candidats disponibles temporellement, triée par nbPlace DESC puis Id_Vehicule ASC
+@throws SQLException erreur SQL
+*/
+
+
+Remplacer la méthode par cette version exacte
+1) Remplacer la méthode getVehiculesCandidatsPourSplit(...) par celle-ci (copier-coller direct) :
+
+      public List<Vehicule> getVehiculesCandidatsPourSplit(
+              int passagersRestants,
+              java.time.LocalDate date,
+              java.time.LocalDateTime debutGroupe,
+              java.time.LocalDateTime finGroupe,
+              Connection connection) throws SQLException {
+
+          // passagersRestants est conservé volontairement dans la signature
+          // (contrat Sprint 7), même si non utilisé au niveau SQL repository.
+          String sql = "SELECT v.Id_Vehicule, v.Reference, v.nbPlace, v.TypeVehicule, " +
+                  "COALESCE(tc.trajet_count, 0) AS trajet_count, " +
+                  "COALESCE(tc.dernier_retour, ?) AS dernier_retour " +
+                  "FROM dev.Vehicule v " +
+                  "LEFT JOIN (" +
+                  "    SELECT t.Id_Vehicule, " +
+                  "           COUNT(t.Id_Trajet) AS trajet_count, " +
+                  "           MAX(t.date_heure_retour) AS dernier_retour " +
+                  "    FROM dev.Trajet t " +
+                  "    WHERE DATE(t.date_assignation) = ? " +
+                  "    GROUP BY t.Id_Vehicule" +
+                  ") tc ON tc.Id_Vehicule = v.Id_Vehicule " +
+                  "WHERE (" +
+                  "    COALESCE(tc.dernier_retour, ?) <= ? " +
+                  "    OR " +
+                  "    (COALESCE(tc.dernier_retour, ?) > ? AND COALESCE(tc.dernier_retour, ?) <= ?)" +
+                  ") " +
+                  "ORDER BY v.nbPlace DESC, v.Id_Vehicule ASC";
+
+          return executeVehiculeAvailabilityQueryForSplit(connection, sql, date, debutGroupe, finGroupe);
+      }
