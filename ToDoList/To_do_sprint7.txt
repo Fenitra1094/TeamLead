@@ -139,3 +139,37 @@ CRITERES D'ACCEPTATION
 - Le remplissage d'un vehicule entame est tente en priorite avant de passer au suivant.
 - Les reports de passagers restants fonctionnent vers le regroupement suivant.
 - L'UI montre explicitement les splits et les restes.
+
+
+1. Nettoyer la phase A (tri repository uniquement par capacité DESC)
+    - Cible: VehiculeRepository.java
+    - Action: dans la méthode split, garder seulement les filtres de disponibilité + ORDER BY capacité DESC.
+    - Retirer tout critère de “proximité”, aléatoire, ou tie-break métier côté repository.
+    - Critère de fin: la liste renvoyée est strictement “gros vers petit”, point.
+
+2. Centraliser la phase B (choix du plus proche) dans le service
+    - Cible: AssignationService.java
+    - Action: le service choisit le véhicule “le plus proche” parmi les candidats du repository.
+    - Ajouter un tie-break déterministe unique (ex: distance, puis nb trajets, puis id véhicule).
+    - Critère de fin: à données identiques, même résultat à chaque exécution.
+
+
+3. Verrouiller la boucle de split et le calcul du reste
+    - Cible: AssignationService.java
+    - Action:
+        . Tant que reste > 0, sélectionner un candidat.
+        . Quantité assignée = min(capacité véhicule, reste).
+        . Persister quantitePassagersAssignes pour chaque assignation partielle.
+        . Si aucun candidat, créer une seule entrée “non assignée” avec le reste exact.
+    - Critère de fin: somme(assignés) + non assignés = passagers demandés, toujours.
+
+4. Corriger la propriété de groupe pour les restes/non assignés
+    - Cible: AssignationService.java
+    - Action: rattacher les restes et les non assignés au groupe de traitement courant, jamais au groupe suivant.
+    - Critère de fin: aucun passager “transporté” au mauvais groupe dans le rendu final.
+
+5. Ajouter 3 tests d’acceptation minimaux (obligatoire pour clore)
+    - Cas A: 9 passagers, véhicules 5 + 4 -> 2 assignations, reste 0.
+    - Cas B: 9 passagers, véhicules 5 + 2 -> assignés 7, non assignés 2.
+    - Cas C: aucun véhicule dispo -> non assignés = total demandé.
+    - Critère de fin: les 3 cas passent et valident les sommes + l’appartenance au bon groupe.
