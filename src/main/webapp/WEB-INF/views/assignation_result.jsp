@@ -512,6 +512,8 @@
                // Il sera rempli AU FIL des groupes avec les vrais restants.
                // Cela evite de compter les reservations futures comme "reportees en entree"
                Map<Integer, Integer> restantsAvantGroupe = new LinkedHashMap<Integer, Integer>();
+               // Reports effectivement transmis depuis le groupe precedent vers le groupe courant.
+               Map<Integer, Integer> reportsVersGroupeCourant = new LinkedHashMap<Integer, Integer>();
 
                for (int i = 0; i < groupes.size(); i++) {
                    GroupeTemps groupe = groupes.get(i);
@@ -618,8 +620,12 @@
 
                        int restantAvant = Math.max(0, restantsAvantGroupe.getOrDefault(idReservation, 0));
                        int assignesGroupe = Math.max(0, passagersAssignesDansGroupe.getOrDefault(idReservation, 0));
-                       restantsAvantGroupe.put(idReservation, Math.max(0, restantAvant - assignesGroupe));
+                       int restantApresGroupe = Math.max(0, totalATraiterDansCeGroupe - assignesGroupe);
+                       if (restantApresGroupe > 0) {
+                           reportsPourGroupeSuivant.put(idReservation, restantApresGroupe);
+                       }
                    }
+                   reportsVersGroupeCourant = reportsPourGroupeSuivant;
 
                    Set<Integer> reservationsAssigneesLot = new LinkedHashSet<Integer>();
                    for (Map.Entry<Integer, Integer> entry : passagersAssignesDansGroupe.entrySet()) {
