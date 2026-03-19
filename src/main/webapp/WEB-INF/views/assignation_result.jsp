@@ -615,6 +615,7 @@
                        }
                    }
                    reportsVersGroupeCourant = reportsPourGroupeSuivant;
+
                        int restantAvant = Math.max(0, restantsAvantGroupe.getOrDefault(idReservation, 0));
                        int assignesGroupe = Math.max(0, passagersAssignesDansGroupe.getOrDefault(idReservation, 0));
                        restantsAvantGroupe.put(idReservation, Math.max(0, restantAvant - assignesGroupe));
