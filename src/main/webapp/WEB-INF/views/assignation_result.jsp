@@ -882,6 +882,48 @@
         </c:if>
     </section>
 
+
+    <section class="card">
+        <h2>Reservations par vehicule</h2>
+        <c:if test="${empty reservationsParVehicule}">
+            <div class="alert warning">Aucune réservation n'a été faite par un véhicule.</div>
+        </c:if>
+        <c:if test="${not empty reservationsParVehicule}">
+            <table>
+                <thead>
+                <tr>
+                    <th>Véhicule</th>
+                    <th>Réservations (ID)</th>
+                    <th>Clients</th>
+                </tr>
+                </thead>
+                <tbody>
+                <% Map<Integer, List<Reservation>> reservationsParVehicule = (Map<Integer, List<Reservation>>) request.getAttribute("reservationsParVehicule");
+                   Set<Integer> vehiculesAffiches = reservationsParVehicule != null ? reservationsParVehicule.keySet() : new LinkedHashSet<>();
+                   for (Integer idVehicule : vehiculesAffiches) {
+                       List<Reservation> reservations = reservationsParVehicule.get(idVehicule);
+                       if (reservations == null || reservations.isEmpty()) continue;
+                       StringBuilder ids = new StringBuilder();
+                       StringBuilder clients = new StringBuilder();
+                       for (int i = 0; i < reservations.size(); i++) {
+                           Reservation r = reservations.get(i);
+                           if (r == null) continue;
+                           if (i > 0) { ids.append(", "); clients.append(", "); }
+                           ids.append("R").append(r.getIdReservation());
+                           clients.append(r.getIdClient() != null ? r.getIdClient() : "-");
+                       }
+                %>
+                    <tr>
+                        <td>V<%= idVehicule %></td>
+                        <td><%= ids.toString() %></td>
+                        <td><%= clients.toString() %></td>
+                    </tr>
+                <% } %>
+                </tbody>
+            </table>
+        </c:if>
+    </section>
+
     <section class="card table-muted">
         <h2>Vehicules non utilises</h2>
         <c:if test="${empty vehiculesNonUtilises}">
