@@ -222,75 +222,62 @@ public class VehiculeRepository {
         return vehicules;
     }
 
-    /**
-     * Retourne les véhicules candidats pour un split de réservation.
-     * ÉTAPE A : Récupère et trie les véhicules en DESC par capacité, sans filtrage strict.
-     * L'ÉTAPE B (sélection "plus proche") se fera dans AssignationService.
-     * 
-     * Contrairement à getVehiculesDisponible, cette méthode retourne de possibles
-     * candidats même si leur capacité < passagersRestants (pour supporter le split).
-     * 
-     * @param passagersRestants Nombre de passagers restants à assigner
-     * @param date Date d'assignation demandée
-     * @param debutGroupe Heure actuelle de départ du groupe
-     * @param finGroupe Heure de fin du groupe (première réservation + temps attente)
-     * @param connection Connexion existante (pour la transaction)
-     * @return Liste des véhicules candidats triés par capacité DESC, 
-     *         puis par trajet_count ASC, diesel avant essence, et random
-     */
-    /**
-     * Récupère les candidats de véhicules pour le split d'une réservation.
-     * 
-     * ÉTAPE A (Repository) :
-     * - Vérifie la disponibilité temporelle du véhicule sur la plage [debutGroupe, finGroupe]
-     * - Retourne une liste triée par capacité DESC (nbPlace)
-     * - Inclut les véhicules avec nbPlace >= passagersRestants ET les véhicules avec nbPlace < passagersRestants
-     * - Ajoute un tie-break technique (Id_Vehicule ASC) pour garantir reproductibilité
-     * 
-     * ÉTAPE B (Métier - réalisée ensuite dans AssignationService) :
-     * - Sélection du meilleur candidat en fonction de: capacité >= passagersRestants, écart minimal, trajet_count, diesel, random
-     * - Fallback vers ces < passagersRestants si tous les >= sont épuisés
-     * 
-     * @param passagersRestants nombre de passagers à assigner (keepé pour contrat Sprint 7, non utilisé en SQL repository)
-     * @param date date de la réservation
-     * @param debutGroupe heure de début du groupe
-     * @param finGroupe heure de fin du groupe
-     * @param connection connexion à la base de données
-     * @return liste triée par capacité DESC, candidate pour l'étape de sélection métier
-     * @throws SQLException erreur d'accès base de données
-     */
-    public List<Vehicule> getVehiculesCandidatsPourSplit(int passagersRestants, 
-            java.time.LocalDate date, java.time.LocalDateTime debutGroupe, 
-            java.time.LocalDateTime finGroupe, Connection connection) throws SQLException {
-        
-        // ============================================
-        // ÉTAPE A : Récupération + tri DESC capacité
-        // ============================================
-        // Même logique que getVehiculesDisponible
-        // MAIS sans le filtre "nbPlace >= passagersRestants"
-        // Retourne tous les véhicules disponibles temporellement, triés par capacité DESC
-        
-        String sql = "SELECT v.Id_Vehicule, v.Reference, v.nbPlace, v.TypeVehicule, " +
-                "COALESCE(tc.trajet_count, 0) AS trajet_count, " +
-                "COALESCE(tc.dernier_retour, ?) AS dernier_retour " +
-                "FROM dev.Vehicule v " +
-                "LEFT JOIN (" +
-                "    SELECT t.Id_Vehicule, " +
-                "           COUNT(t.Id_Trajet) AS trajet_count, " +
-                "           MAX(t.date_heure_retour) AS dernier_retour " +
-                "    FROM dev.Trajet t " +
-                "    WHERE DATE(t.date_assignation) = ? " +
-                "    GROUP BY t.Id_Vehicule" +
-                ") tc ON tc.Id_Vehicule = v.Id_Vehicule " +
-                "WHERE " +
-                "    COALESCE(tc.dernier_retour, ?) <= ? " +
-                "    OR " +
-                "    (COALESCE(tc.dernier_retour, ?) > ? AND COALESCE(tc.dernier_retour, ?) <= ?)" +
-                " " +
-                "ORDER BY v.nbPlace DESC, v.Id_Vehicule ASC";
+     /**
 
-        return executeVehiculeAvailabilityQueryForSplit(connection, sql, date, debutGroupe, finGroupe);
-    }
+        Récupère les véhicules candidats pour le split d'une réservation.
+        Rôle Repository = Étape A uniquement :
+        Vérifie la disponibilité temporelle sur [debutGroupe, finGroupe]
+        Retourne les candidats triés par capacité DESC
+        Ajoute un tie-break technique stable (Id_Vehicule ASC)
+        Rôle Service (AssignationService) = Étape B :
+        Priorité capacité >= passagersRestants
+        Plus proche (écart minimal)
+        Tie-breakers métier : trajet_count, diesel, random
+        Fallback vers capacité inférieure si nécessaire pour split immédiat
+
+        Important :
+        passagersRestants est conservé dans la signature pour le contrat Sprint 7
+        pas de tri métier en SQL repository
+        @param passagersRestants nombre de passagers restants à assigner (contrat Sprint 7)
+        @param date date d'assignation
+        @param debutGroupe début de la fenêtre de groupe
+        @param finGroupe fin de la fenêtre de groupe
+
+        @param connection connexion SQL active
+        @return liste de candidats disponibles temporellement, triée par nbPlace DESC puis Id_Vehicule ASC
+        @throws SQLException erreur SQL
+        */
+
+    public List<Vehicule> getVehiculesCandidatsPourSplit(
+              int passagersRestants,
+              java.time.LocalDate date,
+              java.time.LocalDateTime debutGroupe,
+              java.time.LocalDateTime finGroupe,
+              Connection connection) throws SQLException {
+
+          // passagersRestants est conservé volontairement dans la signature
+          // (contrat Sprint 7), même si non utilisé au niveau SQL repository.
+          String sql = "SELECT v.Id_Vehicule, v.Reference, v.nbPlace, v.TypeVehicule, " +
+                  "COALESCE(tc.trajet_count, 0) AS trajet_count, " +
+                  "COALESCE(tc.dernier_retour, ?) AS dernier_retour " +
+                  "FROM dev.Vehicule v " +
+                  "LEFT JOIN (" +
+                  "    SELECT t.Id_Vehicule, " +
+                  "           COUNT(t.Id_Trajet) AS trajet_count, " +
+                  "           MAX(t.date_heure_retour) AS dernier_retour " +
+                  "    FROM dev.Trajet t " +
+                  "    WHERE DATE(t.date_assignation) = ? " +
+                  "    GROUP BY t.Id_Vehicule" +
+                  ") tc ON tc.Id_Vehicule = v.Id_Vehicule " +
+                  "WHERE (" +
+                  "    COALESCE(tc.dernier_retour, ?) <= ? " +
+                  "    OR " +
+                  "    (COALESCE(tc.dernier_retour, ?) > ? AND COALESCE(tc.dernier_retour, ?) <= ?)" +
+                  ") " +
+                  "ORDER BY v.nbPlace DESC, v.Id_Vehicule ASC";
+
+          return executeVehiculeAvailabilityQueryForSplit(connection, sql, date, debutGroupe, finGroupe);
+      }
 
     /**
      * Exécute la requête pour la récupération des candidats de split.
