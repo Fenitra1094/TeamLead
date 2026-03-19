@@ -172,6 +172,63 @@
     List<Integer> reservationsSplitTriees = new ArrayList<Integer>(reservationsSplitIds);
     Collections.sort(reservationsSplitTriees);
 
+    // Ordre de traitement: d'abord l'ordre de premiere apparition dans les assignations,
+    // puis les reservations restantes selon l'ordre des groupes (deja triees metier),
+    // puis les non assignees et le reste en secours.
+    List<Integer> reservationsSplitOrdreTraitement = new ArrayList<Integer>();
+    Set<Integer> idsDejaPrisOrdreTraitement = new LinkedHashSet<Integer>();
+
+    for (Assignation assignation : assignations) {
+        if (assignation == null) {
+            continue;
+        }
+        Reservation reservation = assignation.getReservation();
+        int idReservation = reservation != null ? reservation.getIdReservation() : assignation.getIdReservation();
+        if (idReservation <= 0 || !reservationsSplitIds.contains(idReservation)) {
+            continue;
+        }
+        if (idsDejaPrisOrdreTraitement.add(idReservation)) {
+            reservationsSplitOrdreTraitement.add(idReservation);
+        }
+    }
+
+    for (GroupeTemps groupe : groupes) {
+        if (groupe == null || groupe.getReservations() == null) {
+            continue;
+        }
+        for (Reservation reservation : groupe.getReservations()) {
+            if (reservation == null) {
+                continue;
+            }
+            int idReservation = reservation.getIdReservation();
+            if (idReservation <= 0 || !reservationsSplitIds.contains(idReservation)) {
+                continue;
+            }
+            if (idsDejaPrisOrdreTraitement.add(idReservation)) {
+                reservationsSplitOrdreTraitement.add(idReservation);
+            }
+        }
+    }
+
+    for (Reservation reservation : nonAssignees) {
+        if (reservation == null) {
+            continue;
+        }
+        int idReservation = reservation.getIdReservation();
+        if (idReservation <= 0 || !reservationsSplitIds.contains(idReservation)) {
+            continue;
+        }
+        if (idsDejaPrisOrdreTraitement.add(idReservation)) {
+            reservationsSplitOrdreTraitement.add(idReservation);
+        }
+    }
+
+    for (Integer idReservation : reservationsSplitTriees) {
+        if (idReservation != null && idsDejaPrisOrdreTraitement.add(idReservation)) {
+            reservationsSplitOrdreTraitement.add(idReservation);
+        }
+    }
+
     int totalReservationsTraitees = assignations.size() + nonAssignees.size();
     int kmTotaux = 0;
     Map<Integer, Integer> nbTrajetsParVehicule = new LinkedHashMap<Integer, Integer>();
@@ -326,6 +383,116 @@
     </section>
 
     <section class="card">
+        <h2>Suivi split par reservation (ordre de traitement)</h2>
+        <% if (reservationsSplitOrdreTraitement.isEmpty()) { %>
+            <div class="alert warning">Aucune reservation a afficher pour l'ordre de traitement.</div>
+        <% } else { %>
+            <table class="split-table">
+                <thead>
+                <tr>
+                    <th>Ordre</th>
+                    <th>Reservation</th>
+                    <th>Hotel</th>
+                    <th>Demande</th>
+                    <th>Assignations partielles (vehicule - passagers)</th>
+                    <th>Restant</th>
+                    <th>Statut</th>
+                </tr>
+                </thead>
+                <tbody>
+                <% int ordreTraitement = 0;
+                   Map<Integer, Integer> utilisationCumuleeParVehicule = new LinkedHashMap<Integer, Integer>();
+                   for (Integer idReservation : reservationsSplitOrdreTraitement) {
+                       if (idReservation == null) {
+                           continue;
+                       }
+                       ordreTraitement++;
+
+                       Reservation reservationInfo = reservationsParId.get(idReservation);
+                       int demandes = passagersDemandesParReservation.containsKey(idReservation)
+                           ? Math.max(0, passagersDemandesParReservation.get(idReservation))
+                           : (reservationInfo != null ? Math.max(0, reservationInfo.getNbPassager()) : 0);
+                       int assignes = passagersAssignesParReservation.containsKey(idReservation)
+                           ? Math.max(0, passagersAssignesParReservation.get(idReservation))
+                           : 0;
+                       int restants = passagersRestantsParReservation.containsKey(idReservation)
+                           ? Math.max(0, passagersRestantsParReservation.get(idReservation))
+                           : Math.max(0, demandes - assignes);
+
+                       List<Map<String, Object>> details = splitDetailsParReservation.get(idReservation);
+                       int nbFragments = details == null ? 0 : details.size();
+
+                       String statusClass = "split-badge split-full";
+                       String statusLabel = "Assigne complet (1 vehicule)";
+                       if (assignes <= 0) {
+                           statusClass = "split-badge split-none";
+                           statusLabel = "Non assigne";
+                       } else if (restants > 0) {
+                           statusClass = "split-badge split-partial";
+                           statusLabel = "Split partiel";
+                       } else if (nbFragments > 1) {
+                           statusClass = "split-badge split-complete";
+                           statusLabel = "Split complet";
+                       }
+                %>
+                    <tr>
+                        <td>#<%= ordreTraitement %></td>
+                        <td>R<%= idReservation %></td>
+                        <td>
+                            <%= reservationInfo != null && reservationInfo.getHotel() != null
+                                    ? safe(reservationInfo.getHotel().getNom())
+                                    : "-" %>
+                        </td>
+                        <td><%= demandes %>p</td>
+                        <td>
+                            <% if (details == null || details.isEmpty()) { %>
+                                <span class="meta-line">Aucune assignation enregistree</span>
+                            <% } else { %>
+                                <ul class="split-list">
+                                    <% for (Map<String, Object> detail : details) {
+                                           if (detail == null) {
+                                               continue;
+                                           }
+                                           String refVehicule = detail.get("vehiculeReference") == null
+                                               ? ""
+                                               : String.valueOf(detail.get("vehiculeReference"));
+                                           int idVehicule = asInt(detail.get("idVehicule"));
+                                           String labelVehicule = refVehicule.trim().isEmpty()
+                                               ? "V" + safe(idVehicule)
+                                               : refVehicule;
+                                           int passagersDetail = Math.max(0, asInt(detail.get("passagersAssignes")));
+                                           int capaciteVehicule = Math.max(0, asInt(detail.get("capaciteVehicule")));
+                                           int utilisationAvant = Math.max(0, utilisationCumuleeParVehicule.getOrDefault(idVehicule, 0));
+                                           int utilisationApres = utilisationAvant + passagersDetail;
+                                           utilisationCumuleeParVehicule.put(idVehicule, utilisationApres);
+                                           int placesRestantesVehicule = Math.max(0, capaciteVehicule - utilisationApres);
+                                    %>
+                                        <li>
+                                            <strong><%= safe(labelVehicule) %></strong> : <%= passagersDetail %>p embarques
+                                            <% if (placesRestantesVehicule > 0) { %>
+                                                <span class="meta-line">(reste <%= placesRestantesVehicule %>p)</span>
+                                            <% } %>
+                                        </li>
+                                    <% } %>
+                                </ul>
+                            <% } %>
+                        </td>
+                        <td>
+                            <% if (restants > 0) { %>
+                                <span class="split-remaining"><%= restants %>p reportes / non assignes</span>
+                            <% } else { %>
+                                0p
+                            <% } %>
+                        </td>
+                        <td><span class="<%= statusClass %>"><%= statusLabel %></span></td>
+                    </tr>
+                <% } %>
+                </tbody>
+            </table>
+        <% } %>
+    </section>
+
+    <section class="card">
         <h2>Groupes de depart (Temps d'attente)</h2>
         <% if (groupes.isEmpty()) { %>
             <div class="alert warning">Aucun groupe calcule pour cette date.</div>
@@ -337,8 +504,9 @@
                    }
                }
 
-               Set<Integer> reservationsDejaRattachees = new HashSet<Integer>();
-               Set<Integer> reportsEnAttente = new LinkedHashSet<Integer>();
+               // Reports effectivement transmis depuis le groupe precedent vers le groupe courant.
+               Map<Integer, Integer> reportsVersGroupeCourant = new LinkedHashMap<Integer, Integer>();
+
                for (int i = 0; i < groupes.size(); i++) {
                    GroupeTemps groupe = groupes.get(i);
                    int numeroGroupe = i + 1;
@@ -358,35 +526,90 @@
                        }
                    }
 
-                   Set<Integer> lotIds = new LinkedHashSet<Integer>(reportsEnAttente);
+                   Set<Integer> reportsEnEntreeIds = new LinkedHashSet<Integer>();
+                   Map<Integer, Integer> reportsEnEntreeParReservation = new LinkedHashMap<Integer, Integer>();
+                   int passagersReportesEnEntree = 0;
+                   for (Map.Entry<Integer, Integer> entry : reportsVersGroupeCourant.entrySet()) {
+                       Integer idReservation = entry.getKey();
+                       int restant = Math.max(0, entry.getValue());
+                       if (idReservation == null || restant <= 0) {
+                           continue;
+                       }
+                       reportsEnEntreeIds.add(idReservation);
+                       reportsEnEntreeParReservation.put(idReservation, restant);
+                       passagersReportesEnEntree += restant;
+                   }
+
+                   Set<Integer> lotIds = new LinkedHashSet<Integer>(reportsEnEntreeIds);
                    lotIds.addAll(reservationsGroupeIds);
 
                    List<Assignation> assignationsGroupe = new ArrayList<Assignation>();
-                   Set<Integer> reservationsAssigneesLot = new LinkedHashSet<Integer>();
+                   Map<Integer, Integer> passagersAssignesDansGroupe = new LinkedHashMap<Integer, Integer>();
                    for (Assignation assignation : assignations) {
                        if (assignation == null || assignation.getReservation() == null) {
                            continue;
                        }
 
                        int idReservation = assignation.getReservation().getIdReservation();
-                       if (!lotIds.contains(idReservation) || reservationsDejaRattachees.contains(idReservation)) {
+                       if (!lotIds.contains(idReservation)) {
                            continue;
                        }
 
                        LocalDateTime dateTraitement = toMinute(assignation.getDateHeureDepart());
                        boolean traiteDansCeGroupe = isInInterval(dateTraitement, debutIntervalle, finIntervalle);
-                       if (!traiteDansCeGroupe && !dernierGroupe) {
+                       if (!traiteDansCeGroupe) {
                            continue;
                        }
 
                        assignationsGroupe.add(assignation);
-                       reservationsAssigneesLot.add(idReservation);
-                       reservationsDejaRattachees.add(idReservation);
+                       int pax = Math.max(0, asInt(assignation.getQuantitePassagersAssignes()));
+                       if (pax <= 0 && assignation.getReservation() != null) {
+                           pax = Math.max(0, assignation.getReservation().getNbPassager());
+                       }
+                       passagersAssignesDansGroupe.put(idReservation, passagersAssignesDansGroupe.getOrDefault(idReservation, 0) + pax);
                    }
 
-                   Set<Integer> nouveauReport = new LinkedHashSet<Integer>(lotIds);
-                   nouveauReport.removeAll(reservationsAssigneesLot);
-                   reportsEnAttente = nouveauReport;
+                   LocalDateTime heureDepartOperationnelle = debutIntervalle;
+                   for (Assignation assignation : assignationsGroupe) {
+                       if (assignation == null || assignation.getDateHeureDepart() == null) {
+                           continue;
+                       }
+                       LocalDateTime departAssigne = toMinute(assignation.getDateHeureDepart());
+                       if (departAssigne == null) {
+                           continue;
+                       }
+                       if (heureDepartOperationnelle == null || departAssigne.isAfter(heureDepartOperationnelle)) {
+                           heureDepartOperationnelle = departAssigne;
+                       }
+                   }
+
+                   Map<Integer, Integer> reportsPourGroupeSuivant = new LinkedHashMap<Integer, Integer>();
+                   for (Integer idReservation : lotIds) {
+                       if (idReservation == null) {
+                           continue;
+                       }
+
+                       int reportEntree = Math.max(0, reportsVersGroupeCourant.getOrDefault(idReservation, 0));
+                       int demandeNativeGroupe = 0;
+                       if (reservationsGroupeIds.contains(idReservation)) {
+                           demandeNativeGroupe = Math.max(0, passagersDemandesParReservation.getOrDefault(idReservation, 0));
+                       }
+
+                       int totalATraiterDansCeGroupe = reportEntree + demandeNativeGroupe;
+                       int assignesGroupe = Math.max(0, passagersAssignesDansGroupe.getOrDefault(idReservation, 0));
+                       int restantApresGroupe = Math.max(0, totalATraiterDansCeGroupe - assignesGroupe);
+                       if (restantApresGroupe > 0) {
+                           reportsPourGroupeSuivant.put(idReservation, restantApresGroupe);
+                       }
+                   }
+                   reportsVersGroupeCourant = reportsPourGroupeSuivant;
+
+                   Set<Integer> reservationsAssigneesLot = new LinkedHashSet<Integer>();
+                   for (Map.Entry<Integer, Integer> entry : passagersAssignesDansGroupe.entrySet()) {
+                       if (entry.getKey() != null && Math.max(0, entry.getValue()) > 0) {
+                           reservationsAssigneesLot.add(entry.getKey());
+                       }
+                   }
 
                    Map<Integer, List<Assignation>> assignationsParTrajet = new LinkedHashMap<Integer, List<Assignation>>();
                    for (Assignation assignation : assignationsGroupe) {
@@ -412,17 +635,47 @@
                    int nbNonAssignees = Math.max(0, nbReservations - nbAssignees);
         %>
             <div class="card">
-                <h3>Groupe #<%= numeroGroupe %> @ <%= safe(debutIntervalle) %></h3>
+                <h3>Groupe #<%= numeroGroupe %> @ <%= safe(heureDepartOperationnelle) %></h3>
                 <p class="meta-line">
                     Intervalle: <%= safe(debutIntervalle) %> -> <%= safe(finIntervalle) %>
+                    | Depart operationnel: <%= safe(heureDepartOperationnelle) %>
                     | Duree: <%= attenteMinutes %> min
                     | Reservations: <%= nbReservations %>
                     | Assignees: <%= nbAssignees %>
                     | Non assignees: <%= nbNonAssignees %>
                 </p>
-                <p>Reportees en entree : <%= lotIds.size() - reservationsGroupeIds.size() %></p>
+                <p>Reportees en entree : <%= reportsEnEntreeIds.size() %> reservation(s) / <%= passagersReportesEnEntree %> passager(s)</p>
+                <% if (!reportsEnEntreeIds.isEmpty()) { %>
+                    <div class="alert warning">
+                        Ce groupe traite des reservations reportees du groupe precedent.
+                        <br>
+                        <strong>Details reports :</strong>
+                        <% boolean firstReported = true;
+                           for (Integer idReport : reportsEnEntreeIds) {
+                               if (idReport == null) {
+                                   continue;
+                               }
+                               Reservation reservationReportee = reservationsParId.get(idReport);
+                               int paxReportes = Math.max(0, reportsEnEntreeParReservation.getOrDefault(idReport, 0));
+                               String hotelReport = "-";
+                               String clientReport = "-";
+                               if (reservationReportee != null) {
+                                   if (reservationReportee.getHotel() != null) {
+                                       hotelReport = safe(reservationReportee.getHotel().getNom());
+                                   }
+                                   clientReport = safe(reservationReportee.getIdClient());
+                               }
+                               if (!firstReported) {
+                                   out.print(", ");
+                               }
+                               out.print("R" + idReport + " (" + paxReportes + "p, " + hotelReport + ", " + clientReport + ")");
+                               firstReported = false;
+                           }
+                        %>
+                    </div>
+                <% } %>
 
-                <% if (reservationsGroupe.isEmpty()) { %>
+                <% if (reservationsGroupe.isEmpty() && reportsEnEntreeIds.isEmpty()) { %>
                     <div class="alert warning">Aucune reservation dans ce groupe.</div>
                 <% } else { %>
                     <table>
@@ -435,17 +688,51 @@
                         </tr>
                         </thead>
                         <tbody>
-                        <% for (Reservation reservation : reservationsGroupe) {
-                               if (reservation == null) {
+                        <%
+                           Set<Integer> reservationIdsAffichees = new LinkedHashSet<Integer>();
+                           reservationIdsAffichees.addAll(reservationsGroupeIds);
+                           reservationIdsAffichees.addAll(reportsEnEntreeIds);
+
+                           List<Integer> reservationIdsAfficheesTriees = new ArrayList<Integer>(reservationIdsAffichees);
+                           final Map<Integer, Integer> passagersDemandesRef = passagersDemandesParReservation;
+                           final Map<Integer, Integer> reportsEnEntreeRef = reportsEnEntreeParReservation;
+                           Collections.sort(reservationIdsAfficheesTriees, new java.util.Comparator<Integer>() {
+                               @Override
+                               public int compare(Integer id1, Integer id2) {
+                                   int p1 = reportsEnEntreeRef.containsKey(id1)
+                                           ? Math.max(0, reportsEnEntreeRef.get(id1))
+                                           : Math.max(0, passagersDemandesRef.getOrDefault(id1, 0));
+                                   int p2 = reportsEnEntreeRef.containsKey(id2)
+                                           ? Math.max(0, reportsEnEntreeRef.get(id2))
+                                           : Math.max(0, passagersDemandesRef.getOrDefault(id2, 0));
+
+                                   if (p1 != p2) {
+                                       return Integer.compare(p2, p1);
+                                   }
+                                   return Integer.compare(id1, id2);
+                               }
+                           });
+
+                           for (Integer idReservationAffichee : reservationIdsAfficheesTriees) {
+                               if (idReservationAffichee == null || idReservationAffichee <= 0) {
                                    continue;
                                }
-                               boolean assignee = reservationsAssigneesLot.contains(reservation.getIdReservation());
+                               Reservation reservation = reservationsParId.get(idReservationAffichee);
+                               boolean estReportEntree = reportsEnEntreeIds.contains(idReservationAffichee);
+                               boolean assignee = reservationsAssigneesLot.contains(idReservationAffichee);
+                               int passagersAffiches = estReportEntree
+                                       ? Math.max(0, reportsEnEntreeParReservation.getOrDefault(idReservationAffichee, 0))
+                                       : Math.max(0, passagersDemandesParReservation.getOrDefault(idReservationAffichee,
+                                               reservation != null ? reservation.getNbPassager() : 0));
+                               String etat = estReportEntree
+                                       ? (assignee ? "Reportee (entree groupe) - Assignee" : "Reportee (entree groupe) - Non assignee")
+                                       : (assignee ? "Assignee" : "Reportee / Non assignee");
                         %>
                             <tr>
-                                <td><%= reservation.getIdReservation() %></td>
-                                <td><%= reservation.getHotel() != null ? safe(reservation.getHotel().getNom()) : "-" %></td>
-                                <td><%= reservation.getNbPassager() %></td>
-                                <td><%= assignee ? "Assignee" : "Reportee / Non assignee" %></td>
+                                <td><%= idReservationAffichee %></td>
+                                <td><%= (reservation != null && reservation.getHotel() != null) ? safe(reservation.getHotel().getNom()) : "-" %></td>
+                                <td><%= passagersAffiches %></td>
+                                <td><%= etat %></td>
                             </tr>
                         <% } %>
                         </tbody>
@@ -507,7 +794,50 @@
 
                             <p class="meta-line">
                                 <strong>Reservations :</strong>
-                                Voir le bloc <em>Suivi split par reservation</em> pour le detail par vehicule.
+                                <% if (assignationsTrajet == null || assignationsTrajet.isEmpty()) { %>
+                                    Aucune reservation rattachee.
+                                <% } else {
+                                       Map<Integer, Integer> passagersParReservationTrajet = new LinkedHashMap<Integer, Integer>();
+                                       Map<Integer, Reservation> reservationParIdTrajet = new LinkedHashMap<Integer, Reservation>();
+                                       for (Assignation a : assignationsTrajet) {
+                                           if (a == null) {
+                                               continue;
+                                           }
+                                           Reservation r = a.getReservation();
+                                           int idReservation = r != null ? r.getIdReservation() : a.getIdReservation();
+                                           if (idReservation <= 0) {
+                                               continue;
+                                           }
+
+                                           int passagersAssignesTrajet = a.getQuantitePassagersAssignes();
+                                           if (passagersAssignesTrajet <= 0 && r != null) {
+                                               passagersAssignesTrajet = Math.max(0, r.getNbPassager());
+                                           }
+
+                                           passagersParReservationTrajet.put(
+                                                   idReservation,
+                                                   passagersParReservationTrajet.getOrDefault(idReservation, 0) + Math.max(0, passagersAssignesTrajet)
+                                           );
+                                           if (r != null) {
+                                               reservationParIdTrajet.putIfAbsent(idReservation, r);
+                                           }
+                                       }
+
+                                       List<String> resumeReservationsTrajet = new ArrayList<String>();
+                                       for (Map.Entry<Integer, Integer> e : passagersParReservationTrajet.entrySet()) {
+                                           Integer idRes = e.getKey();
+                                           int pax = Math.max(0, e.getValue());
+                                           Reservation r = reservationParIdTrajet.get(idRes);
+                                           String client = (r != null && r.getIdClient() != null) ? String.valueOf(r.getIdClient()) : null;
+                                           String libelle = "R" + idRes + " (" + pax + "p)";
+                                           if (client != null && !client.trim().isEmpty()) {
+                                               libelle += " - " + client;
+                                           }
+                                           resumeReservationsTrajet.add(libelle);
+                                       }
+                                %>
+                                    <%= safe(String.join(" ; ", resumeReservationsTrajet)) %>
+                                <% } %>
                             </p>
                         </div>
                     <%     }

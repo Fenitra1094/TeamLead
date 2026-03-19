@@ -102,10 +102,12 @@ public class AssignationController {
             Set<Vehicule> vehiculesUtilises = new LinkedHashSet<>(vehiculesUtilisesMap.values());
             List<Vehicule> tousVehicules = vehiculeService.listVehicules();
             List<Vehicule> vehiculesNonUtilises = new ArrayList<>();
+            Map<Integer, Integer> capaciteParVehicule = new LinkedHashMap<>();
             for (Vehicule vehicule : tousVehicules) {
                 if (vehicule == null) {
                     continue;
                 }
+                capaciteParVehicule.put(vehicule.getIdVehicule(), Math.max(0, vehicule.getNbPlace()));
                 if (!vehiculeIdsUtilises.contains(vehicule.getIdVehicule())) {
                     vehiculesNonUtilises.add(vehicule);
                 }
@@ -159,6 +161,11 @@ public class AssignationController {
                 detail.put("dateHeureDepart", assignation.getDateHeureDepart());
                 detail.put("dateHeureRetour", assignation.getDateHeureRetour());
                 detail.put("passagersAssignes", passagersAssignes);
+                int capaciteVehicule = assignation.getVehicule() != null
+                    ? Math.max(0, assignation.getVehicule().getNbPlace())
+                    : Math.max(0, capaciteParVehicule.getOrDefault(assignation.getIdVehicule(), 0));
+                detail.put("capaciteVehicule", capaciteVehicule);
+                detail.put("placesRestantesVehicule", Math.max(0, capaciteVehicule - passagersAssignes));
                 detail.put("estPartielle", reservation != null
                         && passagersAssignes > 0
                         && passagersAssignes < reservation.getNbPassager());
