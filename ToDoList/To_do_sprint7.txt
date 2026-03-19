@@ -1,10 +1,10 @@
 SPRINT 7 - Division / Split des reservations + remplissage intelligent des vehicules
 
 ROLE :
-Team Lead - ETU 3371
+Team Lead - ETU 3273
 
 DEV 1 - ETU 3265
-DEV 2 - ETU 3273
+DEV 2 - ETU 3371
 
 Tout sur BackOffice
 
