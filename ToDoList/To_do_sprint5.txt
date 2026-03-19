@@ -5,7 +5,7 @@ SPRINT 5 - Regroupement client / reservation (Temps d'Attente)
 ROLE :
 Team Lead - ETU 3265
 
-DEV 1 - ETU xxxx
+DEV 1 - ETU 3273
 DEV 2 - ETU 3371
 
 Tout sur BackOffice

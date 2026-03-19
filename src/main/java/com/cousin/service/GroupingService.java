@@ -1,5 +1,8 @@
 package com.cousin.service;
 
+import com.cousin.model.Reservation;
+import com.cousin.util.GroupeTemps;
+import com.cousin.util.GroupeVol;
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
@@ -9,10 +12,6 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-
-import com.cousin.model.Reservation;
-import com.cousin.util.GroupeTemps;
-import com.cousin.util.GroupeVol;
 
 public class GroupingService {
 
@@ -48,7 +47,6 @@ public class GroupingService {
 
             List<Reservation> reservationsGroupe = new ArrayList<>();
             reservationsGroupe.add(pivot);
-            LocalDateTime maxHeure = datePivot;
             traites.add(idPivot);
 
             for (int j = i + 1; j < triees.size(); j++) {
@@ -61,9 +59,6 @@ public class GroupingService {
                 LocalDateTime heureCandidate = candidate.getDateHeureArrive();
                 if (!heureCandidate.isAfter(fenetreFin)) {
                     reservationsGroupe.add(candidate);
-                    if (heureCandidate.isAfter(maxHeure)) {
-                        maxHeure = heureCandidate;
-                    }
                     traites.add(idCandidate);
                 } else {
                     // Liste triee ASC, aucune reservation suivante ne peut entrer dans la fenetre.
@@ -74,7 +69,8 @@ public class GroupingService {
             reservationsGroupe.sort(Comparator.comparingInt(Reservation::getNbPassager).reversed());
 
             GroupeTemps groupe = new GroupeTemps();
-            groupe.setHeureDepartGroupe(maxHeure);
+            // La reference du groupe est l'heure minimale (premiere reservation de la fenetre).
+            groupe.setHeureDepartGroupe(datePivot);
             groupe.setTempsAttenteMinutes(tempsAttenteMinutes);
             groupe.setReservations(reservationsGroupe);
             groupes.add(groupe);
