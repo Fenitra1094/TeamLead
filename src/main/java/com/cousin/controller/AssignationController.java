@@ -258,6 +258,17 @@ public class AssignationController {
             mv.addAttribute("passagersAssignesParReservation", passagersAssignesParReservation);
             mv.addAttribute("passagersRestantsParReservation", passagersRestantsParReservation);
             mv.addAttribute("resumeGroupesSplit", resumeGroupesSplit);
+            // Ajout : Map des réservations par véhicule pour affichage JSP
+            Map<Integer, List<Reservation>> reservationsParVehicule = new LinkedHashMap<>();
+            for (Assignation assignation : assignations) {
+                if (assignation == null) continue;
+                int idVehicule = assignation.getIdVehicule();
+                Reservation reservation = assignation.getReservation();
+                if (idVehicule > 0 && reservation != null) {
+                    reservationsParVehicule.computeIfAbsent(idVehicule, k -> new ArrayList<>()).add(reservation);
+                }
+            }
+            mv.addAttribute("reservationsParVehicule", reservationsParVehicule);
             mv.addAttribute("message", "Assignation effectuee avec succes pour le " + date);
         } catch (Exception e) {
             mv.addAttribute("error", "Erreur inattendue lors de l'assignation: " + e.getMessage());
