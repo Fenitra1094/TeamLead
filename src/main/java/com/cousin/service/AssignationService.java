@@ -1,5 +1,14 @@
 package com.cousin.service;
 
+import java.sql.Connection;
+import java.sql.SQLException;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.LocalTime;
+import java.time.temporal.ChronoUnit;
+import java.util.ArrayList;
+import java.util.List;
+
 import com.cousin.model.Assignation;
 import com.cousin.model.Reservation;
 import com.cousin.model.Trajet;
@@ -13,13 +22,6 @@ import com.cousin.util.AssignationResult;
 import com.cousin.util.DbConnection;
 import com.cousin.util.DureeResult;
 import com.cousin.util.GroupeTemps;
-import java.sql.Connection;
-import java.sql.SQLException;
-import java.time.LocalDate;
-import java.time.LocalDateTime;
-import java.time.temporal.ChronoUnit;
-import java.util.ArrayList;
-import java.util.List;
 
 public class AssignationService {
     private final AssignationRepository assignationRepository;
@@ -92,9 +94,14 @@ public class AssignationService {
                     List<Trajet> trajetsDuGroupe = new ArrayList<>();
 
                     java.util.Map<Integer, Reservation> reservationsParIdDansGroupe = new java.util.LinkedHashMap<>();
+                    java.util.Map<Integer, Integer> passagersRestantsParReservation = new java.util.HashMap<>();
                     for (Reservation reservation : reservationsATraiter) {
                         if (reservation != null && reservation.getIdReservation() > 0) {
                             reservationsParIdDansGroupe.putIfAbsent(reservation.getIdReservation(), reservation);
+                            passagersRestantsParReservation.put(
+                                    reservation.getIdReservation(),
+                                    Math.max(0, reservation.getNbPassager())
+                            );
                         }
                     }
 
@@ -112,7 +119,15 @@ public class AssignationService {
                             continue;
                         }
 
-                        int passagersRestants = reservationCourante.getNbPassager();
+                        int idReservationCourante = reservationCourante.getIdReservation();
+                        int passagersRestants = passagersRestantsParReservation.getOrDefault(
+                                idReservationCourante,
+                                Math.max(0, reservationCourante.getNbPassager())
+                        );
+                        if (passagersRestants <= 0) {
+                            reservationsTraitees.add(idReservationCourante);
+                            continue;
+                        }
                         boolean dejaReportee = false;
                         java.util.Set<Integer> vehiculesExclus = new java.util.HashSet<>();
 
@@ -141,6 +156,15 @@ public class AssignationService {
                                 if (vehiculeChoisi.getDernierRetour() != null &&
                                         vehiculeChoisi.getDernierRetour().isAfter(dateDepartTrajet)) {
                                     dateDepartTrajet = vehiculeChoisi.getDernierRetour();
+                                }
+
+                                // Garde-fou: jamais avant l'heure de disponibilite declaree du vehicule.
+                                LocalTime heureDisponibiliteVehicule = vehiculeChoisi.getHeureDisponibilite() != null
+                                        ? vehiculeChoisi.getHeureDisponibilite()
+                                        : LocalTime.MIDNIGHT;
+                                LocalDateTime disponibiliteDuJour = LocalDateTime.of(date, heureDisponibiliteVehicule);
+                                if (disponibiliteDuJour.isAfter(dateDepartTrajet)) {
+                                    dateDepartTrajet = disponibiliteDuJour;
                                 }
 
                                 if (trajet == null) {
@@ -216,61 +240,75 @@ public class AssignationService {
                                 capaciteUtiliseeParVehicule.put(vehiculeChoisi.getIdVehicule(), nouvelleUtilisation);
 
                                 passagersRestants -= personnesAEmbarquer;
+                                passagersRestantsParReservation.put(idReservationCourante, Math.max(0, passagersRestants));
 
                                 if (passagersRestants == 0) {
-                                    reservationsTraitees.add(reservationCourante.getIdReservation());
+                                    reservationsTraitees.add(idReservationCourante);
                                 }
 
                                 int capaciteRestante = getCapaciteDisponible(vehiculeChoisi, capaciteUtiliseeParVehicule);
-                                if (capaciteRestante > 0) {
-                                    for (int idxFiller = idxRes + 1; idxFiller < reservationsATraiter.size()
-                                            && capaciteRestante > 0; idxFiller++) {
+                                while (capaciteRestante > 0) {
+                                    Reservation reservationFiller = choisirReservationFillerPlusProche(
+                                            reservationsATraiter,
+                                            idxRes + 1,
+                                            reservationsTraitees,
+                                            passagersRestantsParReservation,
+                                            capaciteRestante
+                                    );
 
-                                        Reservation reservationFiller = reservationsATraiter.get(idxFiller);
-                                        if (reservationFiller == null || reservationFiller.getIdReservation() <= 0) {
-                                            continue;
-                                        }
-                                        if (reservationsTraitees.contains(reservationFiller.getIdReservation())) {
-                                            continue;
-                                        }
-                                        if (reservationFiller.getHotel() == null) {
-                                            continue;
-                                        }
-
-                                        if (reservationFiller.getNbPassager() <= capaciteRestante) {
-                                            synchronizeTrajetHotelsForReservation(
-                                                    trajet,
-                                                    vehiculeChoisi.getIdVehicule(),
-                                                    reservationFiller,
-                                                    hotelsParVehicule,
-                                                    connection,
-                                                    assignationsParVehicule
-                                            );
-
-                                            Assignation assignationFiller = new Assignation();
-                                            assignationFiller.setIdReservation(reservationFiller.getIdReservation());
-                                            assignationFiller.setIdVehicule(vehiculeChoisi.getIdVehicule());
-                                            assignationFiller.setIdTrajet(trajet.getIdTrajet());
-                                            assignationFiller.setDateHeureDepart(dateDepartTrajet);
-                                            assignationFiller.setDateHeureRetour(trajet.getDateHeureRetour());
-                                            assignationFiller.setQuantitePassagersAssignes(reservationFiller.getNbPassager());
-                                            assignationFiller.setReservation(reservationFiller);
-                                            assignationFiller.setVehicule(vehiculeChoisi);
-
-                                            assignationRepository.insertAssignation(assignationFiller, connection);
-                                            assignations.add(assignationFiller);
-                                            assignationsParVehicule
-                                                    .computeIfAbsent(vehiculeChoisi.getIdVehicule(), key -> new ArrayList<>())
-                                                    .add(assignationFiller);
-
-                                            int utilisationMaj = capaciteUtiliseeParVehicule.getOrDefault(
-                                                    vehiculeChoisi.getIdVehicule(), 0) + reservationFiller.getNbPassager();
-                                            capaciteUtiliseeParVehicule.put(vehiculeChoisi.getIdVehicule(), utilisationMaj);
-
-                                            capaciteRestante -= reservationFiller.getNbPassager();
-                                            reservationsTraitees.add(reservationFiller.getIdReservation());
-                                        }
+                                    if (reservationFiller == null) {
+                                        break;
                                     }
+
+                                    int idReservationFiller = reservationFiller.getIdReservation();
+                                    int passagersFillerRestants = passagersRestantsParReservation.getOrDefault(
+                                            idReservationFiller,
+                                            Math.max(0, reservationFiller.getNbPassager())
+                                    );
+
+                                    if (passagersFillerRestants <= 0) {
+                                        reservationsTraitees.add(idReservationFiller);
+                                        continue;
+                                    }
+
+                                    synchronizeTrajetHotelsForReservation(
+                                            trajet,
+                                            vehiculeChoisi.getIdVehicule(),
+                                            reservationFiller,
+                                            hotelsParVehicule,
+                                            connection,
+                                            assignationsParVehicule
+                                    );
+
+                                    int personnesFillerAEmbarquer = Math.min(passagersFillerRestants, capaciteRestante);
+
+                                    Assignation assignationFiller = new Assignation();
+                                    assignationFiller.setIdReservation(idReservationFiller);
+                                    assignationFiller.setIdVehicule(vehiculeChoisi.getIdVehicule());
+                                    assignationFiller.setIdTrajet(trajet.getIdTrajet());
+                                    assignationFiller.setDateHeureDepart(dateDepartTrajet);
+                                    assignationFiller.setDateHeureRetour(trajet.getDateHeureRetour());
+                                    assignationFiller.setQuantitePassagersAssignes(personnesFillerAEmbarquer);
+                                    assignationFiller.setReservation(reservationFiller);
+                                    assignationFiller.setVehicule(vehiculeChoisi);
+
+                                    assignationRepository.insertAssignation(assignationFiller, connection);
+                                    assignations.add(assignationFiller);
+                                    assignationsParVehicule
+                                            .computeIfAbsent(vehiculeChoisi.getIdVehicule(), key -> new ArrayList<>())
+                                            .add(assignationFiller);
+
+                                    int utilisationMaj = capaciteUtiliseeParVehicule.getOrDefault(
+                                            vehiculeChoisi.getIdVehicule(), 0) + personnesFillerAEmbarquer;
+                                    capaciteUtiliseeParVehicule.put(vehiculeChoisi.getIdVehicule(), utilisationMaj);
+
+                                    int nouveauResteFiller = passagersFillerRestants - personnesFillerAEmbarquer;
+                                    passagersRestantsParReservation.put(idReservationFiller, Math.max(0, nouveauResteFiller));
+                                    if (nouveauResteFiller == 0) {
+                                        reservationsTraitees.add(idReservationFiller);
+                                    }
+
+                                    capaciteRestante -= personnesFillerAEmbarquer;
                                 }
                             } catch (SQLException sqlEx) {
                                 System.err.println("ERROR: Processing reservation " + reservationCourante.getIdReservation() + ": " + sqlEx.getMessage());
@@ -439,6 +477,53 @@ public class AssignationService {
 
     private int getCapaciteDisponible(Vehicule vehicule, java.util.Map<Integer, Integer> capaciteParVehicule) {
         return vehicule.getNbPlace() - capaciteParVehicule.getOrDefault(vehicule.getIdVehicule(), 0);
+    }
+
+    private Reservation choisirReservationFillerPlusProche(
+            List<Reservation> reservationsATraiter,
+            int startIndex,
+            java.util.Set<Integer> reservationsTraitees,
+            java.util.Map<Integer, Integer> passagersRestantsParReservation,
+            int capaciteRestante) {
+
+        Reservation meilleur = null;
+        int meilleurEcart = Integer.MAX_VALUE;
+        int meilleurVolume = -1;
+
+        for (int idx = Math.max(0, startIndex); idx < reservationsATraiter.size(); idx++) {
+            Reservation candidate = reservationsATraiter.get(idx);
+            if (candidate == null || candidate.getIdReservation() <= 0) {
+                continue;
+            }
+            if (candidate.getHotel() == null) {
+                continue;
+            }
+            if (reservationsTraitees.contains(candidate.getIdReservation())) {
+                continue;
+            }
+
+            int passagersRestants = passagersRestantsParReservation.getOrDefault(
+                    candidate.getIdReservation(),
+                    Math.max(0, candidate.getNbPassager())
+            );
+            if (passagersRestants <= 0) {
+                continue;
+            }
+
+            int ecart = Math.abs(passagersRestants - capaciteRestante);
+            if (meilleur == null
+                    || ecart < meilleurEcart
+                    || (ecart == meilleurEcart && passagersRestants > meilleurVolume)
+                    || (ecart == meilleurEcart
+                        && passagersRestants == meilleurVolume
+                        && candidate.getIdReservation() < meilleur.getIdReservation())) {
+                meilleur = candidate;
+                meilleurEcart = ecart;
+                meilleurVolume = passagersRestants;
+            }
+        }
+
+        return meilleur;
     }
 
     private Reservation copierReservationAvecReste(Reservation source, int nbPassagerReste) {

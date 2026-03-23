@@ -10,6 +10,12 @@ INSERT INTO dev.Hotel (code, nom) VALUES
 ('NOV', 'Novotel'),
 ('IBS', 'Ibis');
 
+INSERT INTO dev.Hotel (code, nom) VALUES
+('AER', 'Aeroport'),
+('HT1', 'Hotel1'),
+('HT2', 'Hotel2');
+
+
 INSERT INTO dev.reservation (DateHeureArrive, idClient, nbPassager, Id_Hotel) VALUES
 ('2026-03-05 08:00:00', 'CLI-001', 2, (SELECT Id_Hotel FROM dev.Hotel WHERE code = 'CLB')),
 ('2026-03-05 09:30:00', 'CLI-002', 4, (SELECT Id_Hotel FROM dev.Hotel WHERE code = 'NOV')),
@@ -34,3 +40,8 @@ INSERT INTO dev.Distance (from_hotel, to_hotel, km) VALUES
 ((SELECT Id_Hotel FROM dev.Hotel WHERE code = 'AER'), (SELECT Id_Hotel FROM dev.Hotel WHERE code = 'CLB'), 12),
 ((SELECT Id_Hotel FROM dev.Hotel WHERE code = 'AER'), (SELECT Id_Hotel FROM dev.Hotel WHERE code = 'NOV'), 18),
 ((SELECT Id_Hotel FROM dev.Hotel WHERE code = 'AER'), (SELECT Id_Hotel FROM dev.Hotel WHERE code = 'IBS'), 25);
+
+INSERT INTO dev.Distance (from_hotel, to_hotel, km) VALUES
+(1, 2, 90),
+(1, 3, 35),
+(2, 3, 60);

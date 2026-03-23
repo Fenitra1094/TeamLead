@@ -20,7 +20,7 @@ INSERT INTO dev.token_expiration (token, expiration) VALUES
 ('6ba7b810-9dad-11d1-80b4-00c04fd430c9', NOW() + INTERVAL '48 hours');
 
 INSERT INTO dev.Parametre (code, valeur, unite, typeValeur) VALUES
-('Vm', '30', 'km', 'Integer'),
+('Vm', '50', 'km', 'Integer'),
 ('temps_attente', '30', 'minutes', 'Integer');
 
 -- Distances (airport -> hotels and between hotels)
