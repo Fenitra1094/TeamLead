@@ -693,25 +693,8 @@
                            reservationIdsAffichees.addAll(reservationsGroupeIds);
                            reservationIdsAffichees.addAll(reportsEnEntreeIds);
 
+                           // Le tri doit être fait côté contrôleur Java, la liste reservationIdsAfficheesTriees est supposée déjà triée ici.
                            List<Integer> reservationIdsAfficheesTriees = new ArrayList<Integer>(reservationIdsAffichees);
-                           final Map<Integer, Integer> passagersDemandesRef = passagersDemandesParReservation;
-                           final Map<Integer, Integer> reportsEnEntreeRef = reportsEnEntreeParReservation;
-                           Collections.sort(reservationIdsAfficheesTriees, new java.util.Comparator<Integer>() {
-                               @Override
-                               public int compare(Integer id1, Integer id2) {
-                                   int p1 = reportsEnEntreeRef.containsKey(id1)
-                                           ? Math.max(0, reportsEnEntreeRef.get(id1))
-                                           : Math.max(0, passagersDemandesRef.getOrDefault(id1, 0));
-                                   int p2 = reportsEnEntreeRef.containsKey(id2)
-                                           ? Math.max(0, reportsEnEntreeRef.get(id2))
-                                           : Math.max(0, passagersDemandesRef.getOrDefault(id2, 0));
-
-                                   if (p1 != p2) {
-                                       return Integer.compare(p2, p1);
-                                   }
-                                   return Integer.compare(id1, id2);
-                               }
-                           });
 
                            for (Integer idReservationAffichee : reservationIdsAfficheesTriees) {
                                if (idReservationAffichee == null || idReservationAffichee <= 0) {
