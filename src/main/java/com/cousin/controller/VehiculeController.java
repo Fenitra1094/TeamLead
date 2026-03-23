@@ -8,6 +8,8 @@ import com.framework.annotation.Param;
 import com.framework.annotation.PostMapping;
 import com.framework.model.ModelView;
 import java.sql.SQLException;
+import java.time.LocalTime;
+import java.time.format.DateTimeParseException;
 import java.util.List;
 
 @Controller
@@ -37,11 +39,32 @@ public class VehiculeController {
             @Param("id_vehicule") Integer idVehicule,
             @Param("reference") String reference,
             @Param("nbPlace") Integer nbPlace,
-            @Param("typeVehicule") String typeVehicule) throws SQLException {
+            @Param("typeVehicule") String typeVehicule,
+            @Param("heureDisponibilite") String heureDisponibilite) throws SQLException {
         Vehicule vehicule = new Vehicule();
         vehicule.setReference(reference);
         vehicule.setNbPlace(nbPlace != null ? nbPlace : 0);
         vehicule.setTypeVehicule(typeVehicule);
+
+        if (heureDisponibilite == null || heureDisponibilite.isBlank()) {
+            ModelView mv = new ModelView("/WEB-INF/views/vehicule/form.jsp");
+            mv.addAttribute("error", "Heure de disponibilite obligatoire.");
+            mv.addAttribute("vehicule", vehicule);
+            mv.addAttribute("action", action != null ? action : "insert");
+            return mv;
+        }
+
+        LocalTime heureDisponibiliteValue;
+        try {
+            heureDisponibiliteValue = LocalTime.parse(heureDisponibilite);
+        } catch (DateTimeParseException e) {
+            ModelView mv = new ModelView("/WEB-INF/views/vehicule/form.jsp");
+            mv.addAttribute("error", "Format d'heure invalide. Utilisez HH:mm.");
+            mv.addAttribute("vehicule", vehicule);
+            mv.addAttribute("action", action != null ? action : "insert");
+            return mv;
+        }
+        vehicule.setHeureDisponibilite(heureDisponibiliteValue);
 
         String message;
         if ("edit".equalsIgnoreCase(action) && idVehicule != null) {

@@ -272,3 +272,12 @@ COMMIT;
 -- INSERT INTO dev.Reservation(date_heure_arrive, id_client, nb_passager, id_hotel) VALUES ...
 -- INSERT INTO dev.Vehicule(Reference, nbPlace, TypeVehicule) VALUES ...
 
+
+
+INSERT INTO dev.Vehicule (Reference, nbPlace, TypeVehicule) VALUES
+('S1-TEST-03D', 10, 'D');
+
+INSERT INTO dev.reservation (DateHeureArrive, idClient, nbPassager, Id_Hotel) VALUES
+('2026-04-15 04:11:00', 'S7-A-CLI-011', 8, (SELECT Id_Hotel FROM dev.Hotel WHERE code='NOV')),
+('2026-04-15 04:07:00', 'S7-A-CLI-023', 4, (SELECT Id_Hotel FROM dev.Hotel WHERE code='PAN')),
+('2026-04-15 04:18:00', 'S7-A-CLI-005', 3,  (SELECT Id_Hotel FROM dev.Hotel WHERE code='HBS'));
