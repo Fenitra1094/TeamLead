@@ -1,23 +1,27 @@
 package com.cousin.repository;
 
-import com.cousin.model.Vehicule;
-import com.cousin.util.DbConnection;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.sql.Time;
+import java.time.LocalTime;
 import java.util.ArrayList;
 import java.util.List;
+
+import com.cousin.model.Vehicule;
+import com.cousin.util.DbConnection;
 
 public class VehiculeRepository {
     public void insert(Vehicule vehicule) throws SQLException {
         try (Connection connection = DbConnection.getConnection();
              PreparedStatement statement = connection.prepareStatement(
                      "INSERT INTO " + qualifiedTable(connection, "Vehicule") +
-                     "(Reference, nbPlace, TypeVehicule) VALUES (?, ?, ?)")) {
+                     "(Reference, nbPlace, TypeVehicule, HeureDisponibilite) VALUES (?, ?, ?, ?)")) {
             statement.setString(1, vehicule.getReference());
             statement.setInt(2, vehicule.getNbPlace());
             statement.setString(3, vehicule.getTypeVehicule());
+            statement.setTime(4, Time.valueOf(resolveHeureDisponibilite(vehicule)));
             statement.executeUpdate();
         }
     }
@@ -26,11 +30,12 @@ public class VehiculeRepository {
         try (Connection connection = DbConnection.getConnection();
              PreparedStatement statement = connection.prepareStatement(
                      "UPDATE " + qualifiedTable(connection, "Vehicule") +
-                     " SET Reference = ?, nbPlace = ?, TypeVehicule = ? WHERE Id_Vehicule = ?")) {
+                     " SET Reference = ?, nbPlace = ?, TypeVehicule = ?, HeureDisponibilite = ? WHERE Id_Vehicule = ?")) {
             statement.setString(1, vehicule.getReference());
             statement.setInt(2, vehicule.getNbPlace());
             statement.setString(3, vehicule.getTypeVehicule());
-            statement.setInt(4, vehicule.getIdVehicule());
+            statement.setTime(4, Time.valueOf(resolveHeureDisponibilite(vehicule)));
+            statement.setInt(5, vehicule.getIdVehicule());
             statement.executeUpdate();
         }
     }
@@ -47,7 +52,7 @@ public class VehiculeRepository {
     public Vehicule findById(int idVehicule) throws SQLException {
         try (Connection connection = DbConnection.getConnection();
              PreparedStatement statement = connection.prepareStatement(
-                     "SELECT Id_Vehicule, Reference, nbPlace, TypeVehicule FROM " +
+                     "SELECT Id_Vehicule, Reference, nbPlace, TypeVehicule, HeureDisponibilite FROM " +
                      qualifiedTable(connection, "Vehicule") + " WHERE Id_Vehicule = ?")) {
             statement.setInt(1, idVehicule);
             try (ResultSet resultSet = statement.executeQuery()) {
@@ -57,6 +62,7 @@ public class VehiculeRepository {
                     vehicule.setReference(resultSet.getString("Reference"));
                     vehicule.setNbPlace(resultSet.getInt("nbPlace"));
                     vehicule.setTypeVehicule(resultSet.getString("TypeVehicule"));
+                    vehicule.setHeureDisponibilite(readHeureDisponibilite(resultSet));
                     return vehicule;
                 }
             }
@@ -70,7 +76,7 @@ public class VehiculeRepository {
 
         try (Connection connection = DbConnection.getConnection();
              PreparedStatement statement = connection.prepareStatement(
-                     "SELECT Id_Vehicule, Reference, nbPlace, TypeVehicule FROM " +
+                     "SELECT Id_Vehicule, Reference, nbPlace, TypeVehicule, HeureDisponibilite FROM " +
                      qualifiedTable(connection, "Vehicule") + " ORDER BY Id_Vehicule");
              ResultSet resultSet = statement.executeQuery()) {
             while (resultSet.next()) {
@@ -79,6 +85,7 @@ public class VehiculeRepository {
                 vehicule.setReference(resultSet.getString("Reference"));
                 vehicule.setNbPlace(resultSet.getInt("nbPlace"));
                 vehicule.setTypeVehicule(resultSet.getString("TypeVehicule"));
+                vehicule.setHeureDisponibilite(readHeureDisponibilite(resultSet));
                 vehicules.add(vehicule);
             }
         }
@@ -145,27 +152,34 @@ public class VehiculeRepository {
         //          CASE WHEN v.TypeVehicule = 'D' THEN 0 ELSE 1 END ASC,
         //          RANDOM()
         
-        String sql = "SELECT v.Id_Vehicule, v.Reference, v.nbPlace, v.TypeVehicule, " +
-                "COALESCE(tc.trajet_count, 0) AS trajet_count, " +
-                "COALESCE(tc.dernier_retour, ?) AS dernier_retour " +
-            "FROM " + vehiculeTable + " v " +
-                "LEFT JOIN (" +
-                "    SELECT t.Id_Vehicule, " +
-                "           COUNT(t.Id_Trajet) AS trajet_count, " +
-                "           MAX(t.date_heure_retour) AS dernier_retour " +
-            "    FROM " + trajetTable + " t " +
-                "    WHERE DATE(t.date_assignation) = ? " +
-                "    GROUP BY t.Id_Vehicule" +
-                ") tc ON tc.Id_Vehicule = v.Id_Vehicule " +
-                "WHERE v.nbPlace >= ? " +
-                "AND (" +
-                "    COALESCE(tc.dernier_retour, ?) <= ? " +
+        String sql = "SELECT q.Id_Vehicule, q.Reference, q.nbPlace, q.TypeVehicule, q.HeureDisponibilite, " +
+                "q.trajet_count, q.dernier_retour " +
+            "FROM (" +
+                "    SELECT v.Id_Vehicule, v.Reference, v.nbPlace, v.TypeVehicule, v.HeureDisponibilite, " +
+                "           COALESCE(tc.trajet_count, 0) AS trajet_count, " +
+                "           GREATEST(" +
+                "               COALESCE(tc.dernier_retour, (CAST(? AS date) + v.HeureDisponibilite)), " +
+                "               (CAST(? AS date) + v.HeureDisponibilite)" +
+                "           ) AS dernier_retour " +
+                "    FROM " + vehiculeTable + " v " +
+                "    LEFT JOIN (" +
+                "        SELECT t.Id_Vehicule, " +
+                "               COUNT(t.Id_Trajet) AS trajet_count, " +
+                "               MAX(t.date_heure_retour) AS dernier_retour " +
+                "        FROM " + trajetTable + " t " +
+                "        WHERE DATE(t.date_assignation) = ? " +
+                "        GROUP BY t.Id_Vehicule" +
+                "    ) tc ON tc.Id_Vehicule = v.Id_Vehicule " +
+                "    WHERE v.nbPlace >= ?" +
+            ") q " +
+            "WHERE (" +
+                "    q.dernier_retour <= ? " +
                 "    OR " +
-                "    (COALESCE(tc.dernier_retour, ?) > ? AND COALESCE(tc.dernier_retour, ?) <= ?)" +
-                ") " +
-                "ORDER BY trajet_count ASC, " +
-                "CASE WHEN v.TypeVehicule = 'D' THEN 0 ELSE 1 END ASC, " +
-                "RANDOM()";
+                "    (q.dernier_retour > ? AND q.dernier_retour <= ?)" +
+            ") " +
+            "ORDER BY q.trajet_count ASC, " +
+            "CASE WHEN q.TypeVehicule = 'D' THEN 0 ELSE 1 END ASC, " +
+            "RANDOM()";
 
         return executeVehiculeAvailabilityQuery(connection, sql, nbPassagers, date, debutGroupe, finGroupe);
     }
@@ -181,30 +195,16 @@ public class VehiculeRepository {
         List<Vehicule> vehicules = new ArrayList<>();
         
         try (PreparedStatement statement = connection.prepareStatement(sql)) {
-            // Pour les COALESCE par défaut (si aucun trajet ce jour) = minuit du jour
-            statement.setTimestamp(1, java.sql.Timestamp.valueOf(
-                java.time.LocalDateTime.of(date, java.time.LocalTime.MIDNIGHT)));
-            
-            // Dans la sous-requête
+            // Disponibilite effective = MAX(dernier_retour, date + HeureDisponibilite)
+            statement.setDate(1, java.sql.Date.valueOf(date));
             statement.setDate(2, java.sql.Date.valueOf(date));
-            
-            // WHERE nbPlace >= ?
-            statement.setInt(3, nbPassagers);
-            
-            // Cas A : COALESCE(tc.dernier_retour, ?) <= debutGroupe
-            statement.setTimestamp(4, java.sql.Timestamp.valueOf(
-                java.time.LocalDateTime.of(date, java.time.LocalTime.MIDNIGHT)));
+            statement.setDate(3, java.sql.Date.valueOf(date));
+
+            statement.setInt(4, nbPassagers);
+
             statement.setTimestamp(5, java.sql.Timestamp.valueOf(debutGroupe));
-            
-            // Cas B : première partie (> debutGroupe)
-            statement.setTimestamp(6, java.sql.Timestamp.valueOf(
-                java.time.LocalDateTime.of(date, java.time.LocalTime.MIDNIGHT)));
-            statement.setTimestamp(7, java.sql.Timestamp.valueOf(debutGroupe));
-            
-            // Cas B : deuxième partie (<= finGroupe)
-            statement.setTimestamp(8, java.sql.Timestamp.valueOf(
-                java.time.LocalDateTime.of(date, java.time.LocalTime.MIDNIGHT)));
-            statement.setTimestamp(9, java.sql.Timestamp.valueOf(finGroupe));
+            statement.setTimestamp(6, java.sql.Timestamp.valueOf(debutGroupe));
+            statement.setTimestamp(7, java.sql.Timestamp.valueOf(finGroupe));
 
             try (ResultSet resultSet = statement.executeQuery()) {
                 while (resultSet.next()) {
@@ -213,6 +213,7 @@ public class VehiculeRepository {
                     vehicule.setReference(resultSet.getString("Reference"));
                     vehicule.setNbPlace(resultSet.getInt("nbPlace"));
                     vehicule.setTypeVehicule(resultSet.getString("TypeVehicule"));
+                    vehicule.setHeureDisponibilite(readHeureDisponibilite(resultSet));
                     vehicule.setTrajetCount(resultSet.getInt("trajet_count"));
                     vehicule.setDernierRetour(resultSet.getTimestamp("dernier_retour").toLocalDateTime());
                     vehicules.add(vehicule);
@@ -261,24 +262,31 @@ public class VehiculeRepository {
 
           // passagersRestants est conservé volontairement dans la signature
           // (contrat Sprint 7), même si non utilisé au niveau SQL repository.
-          String sql = "SELECT v.Id_Vehicule, v.Reference, v.nbPlace, v.TypeVehicule, " +
-                  "COALESCE(tc.trajet_count, 0) AS trajet_count, " +
-                  "COALESCE(tc.dernier_retour, ?) AS dernier_retour " +
-              "FROM " + vehiculeTable + " v " +
-                  "LEFT JOIN (" +
-                  "    SELECT t.Id_Vehicule, " +
-                  "           COUNT(t.Id_Trajet) AS trajet_count, " +
-                  "           MAX(t.date_heure_retour) AS dernier_retour " +
-              "    FROM " + trajetTable + " t " +
-                  "    WHERE DATE(t.date_assignation) = ? " +
-                  "    GROUP BY t.Id_Vehicule" +
-                  ") tc ON tc.Id_Vehicule = v.Id_Vehicule " +
-                  "WHERE (" +
-                  "    COALESCE(tc.dernier_retour, ?) <= ? " +
+          String sql = "SELECT q.Id_Vehicule, q.Reference, q.nbPlace, q.TypeVehicule, q.HeureDisponibilite, " +
+                  "q.trajet_count, q.dernier_retour " +
+              "FROM (" +
+                  "    SELECT v.Id_Vehicule, v.Reference, v.nbPlace, v.TypeVehicule, v.HeureDisponibilite, " +
+                  "           COALESCE(tc.trajet_count, 0) AS trajet_count, " +
+                  "           GREATEST(" +
+                  "               COALESCE(tc.dernier_retour, (CAST(? AS date) + v.HeureDisponibilite)), " +
+                  "               (CAST(? AS date) + v.HeureDisponibilite)" +
+                  "           ) AS dernier_retour " +
+                  "    FROM " + vehiculeTable + " v " +
+                  "    LEFT JOIN (" +
+                  "        SELECT t.Id_Vehicule, " +
+                  "               COUNT(t.Id_Trajet) AS trajet_count, " +
+                  "               MAX(t.date_heure_retour) AS dernier_retour " +
+                  "        FROM " + trajetTable + " t " +
+                  "        WHERE DATE(t.date_assignation) = ? " +
+                  "        GROUP BY t.Id_Vehicule" +
+                  "    ) tc ON tc.Id_Vehicule = v.Id_Vehicule " +
+              ") q " +
+              "WHERE (" +
+                  "    q.dernier_retour <= ? " +
                   "    OR " +
-                  "    (COALESCE(tc.dernier_retour, ?) > ? AND COALESCE(tc.dernier_retour, ?) <= ?)" +
-                  ") " +
-                  "ORDER BY v.nbPlace DESC, v.Id_Vehicule ASC";
+                  "    (q.dernier_retour > ? AND q.dernier_retour <= ?)" +
+              ") " +
+              "ORDER BY q.nbPlace DESC, q.Id_Vehicule ASC";
 
           return executeVehiculeAvailabilityQueryForSplit(connection, sql, date, debutGroupe, finGroupe);
       }
@@ -303,27 +311,14 @@ public class VehiculeRepository {
         List<Vehicule> vehicules = new ArrayList<>();
         
         try (PreparedStatement statement = connection.prepareStatement(sql)) {
-            // Pour les COALESCE par défaut (si aucun trajet ce jour) = minuit du jour
-            statement.setTimestamp(1, java.sql.Timestamp.valueOf(
-                java.time.LocalDateTime.of(date, java.time.LocalTime.MIDNIGHT)));
-            
-            // Dans la sous-requête
+            // Disponibilite effective = MAX(dernier_retour, date + HeureDisponibilite)
+            statement.setDate(1, java.sql.Date.valueOf(date));
             statement.setDate(2, java.sql.Date.valueOf(date));
-            
-            // Cas A : COALESCE(tc.dernier_retour, ?) <= debutGroupe
-            statement.setTimestamp(3, java.sql.Timestamp.valueOf(
-                java.time.LocalDateTime.of(date, java.time.LocalTime.MIDNIGHT)));
+            statement.setDate(3, java.sql.Date.valueOf(date));
+
             statement.setTimestamp(4, java.sql.Timestamp.valueOf(debutGroupe));
-            
-            // Cas B : première partie (> debutGroupe)
-            statement.setTimestamp(5, java.sql.Timestamp.valueOf(
-                java.time.LocalDateTime.of(date, java.time.LocalTime.MIDNIGHT)));
-            statement.setTimestamp(6, java.sql.Timestamp.valueOf(debutGroupe));
-            
-            // Cas B : deuxième partie (<= finGroupe)
-            statement.setTimestamp(7, java.sql.Timestamp.valueOf(
-                java.time.LocalDateTime.of(date, java.time.LocalTime.MIDNIGHT)));
-            statement.setTimestamp(8, java.sql.Timestamp.valueOf(finGroupe));
+            statement.setTimestamp(5, java.sql.Timestamp.valueOf(debutGroupe));
+            statement.setTimestamp(6, java.sql.Timestamp.valueOf(finGroupe));
 
             try (ResultSet resultSet = statement.executeQuery()) {
                 while (resultSet.next()) {
@@ -332,6 +327,7 @@ public class VehiculeRepository {
                     vehicule.setReference(resultSet.getString("Reference"));
                     vehicule.setNbPlace(resultSet.getInt("nbPlace"));
                     vehicule.setTypeVehicule(resultSet.getString("TypeVehicule"));
+                    vehicule.setHeureDisponibilite(readHeureDisponibilite(resultSet));
                     vehicule.setTrajetCount(resultSet.getInt("trajet_count"));
                     vehicule.setDernierRetour(resultSet.getTimestamp("dernier_retour").toLocalDateTime());
                     vehicules.add(vehicule);
@@ -340,6 +336,21 @@ public class VehiculeRepository {
         }
 
         return vehicules;
+    }
+
+    private LocalTime readHeureDisponibilite(ResultSet resultSet) throws SQLException {
+        Time sqlTime = resultSet.getTime("HeureDisponibilite");
+        if (sqlTime == null) {
+            return LocalTime.MIDNIGHT;
+        }
+        return sqlTime.toLocalTime();
+    }
+
+    private LocalTime resolveHeureDisponibilite(Vehicule vehicule) {
+        if (vehicule == null || vehicule.getHeureDisponibilite() == null) {
+            return LocalTime.MIDNIGHT;
+        }
+        return vehicule.getHeureDisponibilite();
     }
 
     private String qualifiedTable(Connection connection, String tableName) throws SQLException {

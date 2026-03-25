@@ -47,6 +47,7 @@
         <th>Reference</th>
         <th>Nb place</th>
         <th>Type vehicule</th>
+        <th>Heure disponibilite</th>
         <th>Action</th>
     </tr>
     </thead>
@@ -61,6 +62,7 @@
         <td><%= v.getReference() %></td>
         <td><%= v.getNbPlace() %></td>
         <td><%= v.getTypeVehicule() %></td>
+        <td><%= v.getHeureDisponibilite() != null ? v.getHeureDisponibilite() : "00:00" %></td>
         <td>
             <a href="<%= request.getContextPath() %>/vehicule/list?action=edit&id_vehicule=<%= v.getIdVehicule() %>">Modifier</a>
             |
@@ -73,7 +75,7 @@
         } else {
     %>
     <tr>
-        <td colspan="5">Aucun vehicule</td>
+        <td colspan="6">Aucun vehicule</td>
     </tr>
     <%
         }
