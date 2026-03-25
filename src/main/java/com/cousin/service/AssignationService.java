@@ -247,67 +247,6 @@ public class AssignationService {
                                 }
 
                                 int capaciteRestante = getCapaciteDisponible(vehiculeChoisi, capaciteUtiliseeParVehicule);
-                                if (capaciteRestante > 0) {
-                                    while (capaciteRestante > 0) {
-                                        // Chercher la réservation la plus proche de la capacité restante (mais <=)
-                                        int idxBest = -1;
-                                        int bestDiff = Integer.MAX_VALUE;
-                                        int bestPax = 0;
-                                        for (int idxFiller = idxRes + 1; idxFiller < reservationsATraiter.size(); idxFiller++) {
-                                            Reservation reservationFiller = reservationsATraiter.get(idxFiller);
-                                            if (reservationFiller == null || reservationFiller.getIdReservation() <= 0) continue;
-                                            if (reservationsTraitees.contains(reservationFiller.getIdReservation())) continue;
-                                            if (reservationFiller.getHotel() == null) continue;
-                                            int paxFiller = reservationFiller.getNbPassager();
-                                            int paxToAssign = Math.min(paxFiller, capaciteRestante);
-                                            if (paxToAssign > 0) {
-                                                int diff = Math.abs(capaciteRestante - paxToAssign);
-                                                // Priorité à ceux qui remplissent exactement, sinon le plus proche
-                                                if (diff < bestDiff || (diff == bestDiff && paxToAssign > bestPax)) {
-                                                    idxBest = idxFiller;
-                                                    bestDiff = diff;
-                                                    bestPax = paxToAssign;
-                                                }
-                                            }
-                                        }
-                                        if (idxBest == -1) break; // Plus de réservation à remplir
-                                        Reservation reservationFiller = reservationsATraiter.get(idxBest);
-                                        int paxFiller = reservationFiller.getNbPassager();
-                                        int paxToAssign = Math.min(paxFiller, capaciteRestante);
-                                        synchronizeTrajetHotelsForReservation(
-                                                trajet,
-                                                vehiculeChoisi.getIdVehicule(),
-                                                reservationFiller,
-                                                hotelsParVehicule,
-                                                connection,
-                                                assignationsParVehicule
-                                        );
-                                        Assignation assignationFiller = new Assignation();
-                                        assignationFiller.setIdReservation(reservationFiller.getIdReservation());
-                                        assignationFiller.setIdVehicule(vehiculeChoisi.getIdVehicule());
-                                        assignationFiller.setIdTrajet(trajet.getIdTrajet());
-                                        assignationFiller.setDateHeureDepart(dateDepartTrajet);
-                                        assignationFiller.setDateHeureRetour(trajet.getDateHeureRetour());
-                                        assignationFiller.setQuantitePassagersAssignes(paxToAssign);
-                                        assignationFiller.setReservation(reservationFiller);
-                                        assignationFiller.setVehicule(vehiculeChoisi);
-                                        assignationRepository.insertAssignation(assignationFiller, connection);
-                                        assignations.add(assignationFiller);
-                                        assignationsParVehicule
-                                                .computeIfAbsent(vehiculeChoisi.getIdVehicule(), key -> new ArrayList<>())
-                                                .add(assignationFiller);
-                                        int utilisationMaj = capaciteUtiliseeParVehicule.getOrDefault(
-                                                vehiculeChoisi.getIdVehicule(), 0) + paxToAssign;
-                                        capaciteUtiliseeParVehicule.put(vehiculeChoisi.getIdVehicule(), utilisationMaj);
-                                        capaciteRestante -= paxToAssign;
-                                        if (paxToAssign == paxFiller) {
-                                            reservationsTraitees.add(reservationFiller.getIdReservation());
-                                        } else {
-                                            // Reporter le reste de la réservation non assignée
-                                            int reste = paxFiller - paxToAssign;
-                                            reportsDuGroupe.add(copierReservationAvecReste(reservationFiller, reste));
-                                            reservationsTraitees.add(reservationFiller.getIdReservation());
-                                        }
                                 while (capaciteRestante > 0) {
                                     Reservation reservationFiller = choisirReservationFillerPlusProche(
                                             reservationsATraiter,
