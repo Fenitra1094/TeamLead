@@ -1,0 +1,171 @@
+SPRINT 8 - Traitement prioritaire des non assignes avec vehicule revenu
+
+ROLE :
+Team Lead - ETU 3265
+
+DEV 1 - ETU 3371
+DEV 2 - ETU xxxx
+
+Tout sur BackOffice
+
+REGLES METIER (Sprint 8)
+--------------------------------------------------------------------------------
+- Conserver la logique des sprints precedents (sprint 5 + sprint 7).
+- Ajouter une logique supplementaire si :
+    1) il existe des reservations non assignees d'un regroupement precedent
+    2) un vehicule revient (heure retour connue)
+- Priorite obligatoire : les non assignes precedents embarquent avant les nouvelles reservations.
+
+- Cas A : nonAssignesPrecedent >= capaciteVehicule
+    -> depart immediat du vehicule
+    -> dateHeureDepart = dateHeureRetourVehicule
+
+- Cas B : nonAssignesPrecedent < capaciteVehicule
+    -> creer une fenetre locale [heureRetour, heureRetour + tempsAttente]
+    -> durant la fenetre, regrouper les nouvelles reservations arrivantes
+    -> remplir d'abord avec non assignes precedents, puis nouvelles reservations
+    -> dateHeureDepart :
+        - instant ou le vehicule devient plein (si plein avant fin fenetre)
+        - sinon heureRetour + tempsAttente
+
+- Cas de chevauchement regroupement reservation / vehicule revenu
+    - Exemple : regroupement prevu 12:00-12:30, vehicule revenu a 11:45, avec non assignes precedents.
+    - La logique ci-dessus reste prioritaire et s'applique telle quelle.
+    - On ne casse pas les regroupements existants : on fusionne selon la fenetre active et la priorite des non assignes.
+
+DEV 1
+Branche 1 : sprint8/1/assignation_service_retour_vehicule
+--------------------------------------------------------------------------------
+- Classe : AssignationService
+  -> Fonction : assignerPourDate(LocalDate date)
+      Parametres :
+         - date : LocalDate
+      Travail a faire :
+         - Integrer la gestion "vehicule revenu + non assignes precedents"
+         - Ajouter une file prioritaire des non assignes precedents
+         - Avant tout traitement du groupe courant, tenter d'embarquer cette file prioritaire
+         - Gerer les 2 cas metier :
+             1) depart immediat si nonAssignesPrecedent >= capaciteVehicule
+             2) fenetre d'attente si nonAssignesPrecedent < capaciteVehicule
+         - Conserver les regles existantes de split, tri et report
+
+- Classe : AssignationService
+  -> Fonction : traiterVehiculeRevenu(...)
+      Parametres proposes :
+         - Vehicule vehicule
+         - LocalDateTime heureRetourVehicule
+         - List<Reservation> nonAssigneesPrecedentes
+         - List<Reservation> reservationsNouvelles
+         - int tempsAttenteMinutes
+         - Connection conn
+      Travail a faire :
+         - Methode dediee pour isoler la nouvelle logique sprint 8
+         - Retourner un resultat structure (embarques, restants, dateDepartEffective)
+         - Ne pas dupliquer la logique dans plusieurs blocs
+
+Branche 2 : sprint8/1/groupement_temporel
+--------------------------------------------------------------------------------
+- Classe : GroupingService
+  -> Fonction : construireFenetreRetourVehicule(...)
+      Parametres proposes :
+         - LocalDateTime heureRetourVehicule
+         - int tempsAttenteMinutes
+         - List<Reservation> reservationsJour
+      Travail a faire :
+         - Construire [debutFenetre, finFenetre]
+         - Recuperer les reservations dont DateHeureArrive est dans la fenetre
+         - Conserver tri existant des reservations (RG sprint precedent)
+
+- Classe : GroupingService
+  -> Fonction : fusionnerAvecRegroupementExistant(...)
+      Parametres proposes :
+         - GroupeReservation groupeCourant
+         - FenetreRetourVehicule fenetreRetour
+         - List<Reservation> nonAssigneesPrecedentes
+      Travail a faire :
+         - Gerer proprement le chevauchement entre regroupement normal et fenetre retour
+         - Eviter doublons de reservation dans le lot final
+         - Maintenir priorite des non assignes precedents
+
+DEV 2
+Branche 1 : sprint8/2/model_repository
+--------------------------------------------------------------------------------
+- Classe : Assignation (model)
+  -> Champs a verifier/ajouter :
+      - Integer quantitePassagersAssignes
+      - Boolean fromNonAssigneePrecedent
+      - LocalDateTime dateHeureDepartEffective
+  -> Travail a faire :
+      - Tracer l'origine des passagers embarques (precedent vs nouveau)
+      - Tracer l'heure depart effective utilisee
+
+- Classe : AssignationRepository
+  -> Fonctions : insertAssignation(...), mapAssignation(ResultSet rs)
+      Parametres existants a etendre selon schema
+      Travail a faire :
+         - Persister les nouveaux champs sprint 8
+         - Charger correctement ces champs en lecture
+
+- SQL : migration sprint8
+  -> Fichier : base/migrations/sprint8/V8.0__...__retour_vehicule_priorite_non_assignes.sql
+  -> Travail a faire :
+      - Ajouter colonnes necessaires (si absentes)
+      - Garder compatibilite avec donnees sprint7
+
+Branche 2 : sprint8/2/assignation_controller
+--------------------------------------------------------------------------------
+- Classe : AssignationController
+  -> Fonction : doGet(...) ou endpoint /assignation/assigner?date=YYYY-MM-DD
+      Parametres :
+         - date (request param)
+      Travail a faire :
+         - Exposer au ModelView :
+             * heureRetourVehicule
+             * modeDepart (IMMEDIAT / ATTENTE)
+             * dateHeureDepartEffective
+             * details priorisation non assignes precedents
+
+Branche 3 : sprint8/2/ui_resultats
+--------------------------------------------------------------------------------
+- Fichier : assignation_result.jsp
+  -> Sections a ajouter :
+      1) "Priorite non assignes precedents" (liste embarquee)
+      2) "Fenetre attente retour vehicule" (debut/fin)
+      3) "Depart effectif" (plein avant fin vs depart fin fenetre)
+      4) "Restants non assignes" apres traitement
+  -> Travail a faire :
+      - Affichage clair, sans duplication
+      - Garder la vue compatible avec les donnees sprint7
+
+Branche 4 : sprint8/2/database_seed
+--------------------------------------------------------------------------------
+- Fichier : base/data/sprint8/init_sprint8.sql
+  -> Jeux de donnees obligatoires :
+      - Cas 1 : nonAssignes=10, capacite=6 -> depart immediat
+      - Cas 2 : nonAssignes=3, capacite=6, nouveaux=3 dans fenetre -> depart anticipe (vehicule plein)
+      - Cas 3 : nonAssignes=2, capacite=6, aucun nouveau -> depart fin fenetre
+      - Cas 4 : chevauchement regroupement normal + vehicule revenu
+
+CRITERES D'ACCEPTATION
+--------------------------------------------------------------------------------
+- Les non assignes precedents sont toujours embarques en priorite.
+- Si nonAssignesPrecedent >= capaciteVehicule : depart immediat a heureRetourVehicule.
+- Si nonAssignesPrecedent < capaciteVehicule : fenetre [heureRetour, heureRetour+tempsAttente].
+- Si vehicule plein avant fin fenetre : depart immediat a l'instant de remplissage.
+- Si vehicule non plein en fin fenetre : depart a heureRetour+tempsAttente.
+- En chevauchement, aucune rupture des regles sprint precedent.
+- Conservation des quantites : embarques + restants = total passagers consideres.
+
+TESTS MINIMAUX OBLIGATOIRES
+--------------------------------------------------------------------------------
+1) nonAssignes=10, capacite=6
+    -> attendu : 6 embarques, depart immediat, 4 restants
+
+2) nonAssignes=3, capacite=6, nouveaux=3 dans la fenetre
+    -> attendu : priorite aux 3 anciens, vehicule plein, depart anticipe
+
+3) nonAssignes=2, capacite=6, aucun nouveau
+    -> attendu : depart a heureRetour + tempsAttente
+
+4) chevauchement (vehicule revenu avant regroupement suivant)
+    -> attendu : priorite non assignes conservee + regroupement coherent
