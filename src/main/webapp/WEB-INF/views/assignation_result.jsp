@@ -54,6 +54,20 @@
         return !value.isBefore(start) && value.isBefore(end);
     }
 
+    private LocalDateTime asLocalDateTime(Object value) {
+        if (value == null) {
+            return null;
+        }
+        if (value instanceof LocalDateTime) {
+            return (LocalDateTime) value;
+        }
+        try {
+            return LocalDateTime.parse(String.valueOf(value));
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
     private Object invokeGetter(Object target, String methodName) {
         if (target == null) {
             return null;
@@ -104,6 +118,11 @@
     if (trajets == null) {
         trajets = new ArrayList<Trajet>();
     }
+
+    Object heureRetourVehiculeAttr = request.getAttribute("heureRetourVehicule");
+    Object modeDepartAttr = request.getAttribute("modeDepart");
+    Object dateHeureDepartEffectiveAttr = request.getAttribute("dateHeureDepartEffective");
+    Object detailsPriorisationAttr = request.getAttribute("detailsPriorisationNonAssignesPrecedents");
 
     Set<Vehicule> vehiculesUtilises = (Set<Vehicule>) request.getAttribute("vehiculesUtilises");
     if (vehiculesUtilises == null) {
@@ -254,6 +273,93 @@
             }
         }
     }
+
+    // Sprint 8 UI: priorisation non assignes precedents + fenetre retour vehicule.
+    LocalDateTime heureRetourVehiculeUi = toMinute(asLocalDateTime(heureRetourVehiculeAttr));
+    LocalDateTime dateHeureDepartEffectiveUi = toMinute(asLocalDateTime(dateHeureDepartEffectiveAttr));
+
+    if (dateHeureDepartEffectiveUi == null) {
+        for (Assignation a : assignations) {
+            if (a == null) {
+                continue;
+            }
+            LocalDateTime departEff = toMinute(asLocalDateTime(invokeGetter(a, "getDateHeureDepartEffective")));
+            if (departEff == null) {
+                departEff = toMinute(a.getDateHeureDepart());
+            }
+            if (departEff != null && (dateHeureDepartEffectiveUi == null || departEff.isAfter(dateHeureDepartEffectiveUi))) {
+                dateHeureDepartEffectiveUi = departEff;
+            }
+        }
+    }
+
+    if (heureRetourVehiculeUi == null) {
+        for (Trajet t : trajets) {
+            if (t == null || t.getDateHeureRetour() == null) {
+                continue;
+            }
+            LocalDateTime retour = toMinute(t.getDateHeureRetour());
+            if (retour != null && (heureRetourVehiculeUi == null || retour.isAfter(heureRetourVehiculeUi))) {
+                heureRetourVehiculeUi = retour;
+            }
+        }
+    }
+
+    String modeDepartUi = modeDepartAttr != null ? String.valueOf(modeDepartAttr) : null;
+    if (modeDepartUi == null || modeDepartUi.trim().isEmpty()) {
+        if (heureRetourVehiculeUi != null && dateHeureDepartEffectiveUi != null
+                && !dateHeureDepartEffectiveUi.isAfter(heureRetourVehiculeUi)) {
+            modeDepartUi = "IMMEDIAT";
+        } else if (dateHeureDepartEffectiveUi != null) {
+            modeDepartUi = "ATTENTE";
+        } else {
+            modeDepartUi = "-";
+        }
+    }
+
+    LocalDateTime fenetreDebutUi = heureRetourVehiculeUi;
+    LocalDateTime fenetreFinUi = fenetreDebutUi != null ? fenetreDebutUi.plusMinutes(tempsAttente) : null;
+
+    Map<Integer, Integer> prioriteNonAssigneeParReservation = new LinkedHashMap<Integer, Integer>();
+    for (Assignation a : assignations) {
+        if (a == null) {
+            continue;
+        }
+        Object fromPrev = invokeGetter(a, "getFromNonAssigneePrecedent");
+        boolean estPrioritaire = Boolean.TRUE.equals(fromPrev);
+        if (!estPrioritaire) {
+            continue;
+        }
+
+        int idRes = a.getIdReservation();
+        if (a.getReservation() != null && a.getReservation().getIdReservation() > 0) {
+            idRes = a.getReservation().getIdReservation();
+        }
+        if (idRes <= 0) {
+            continue;
+        }
+
+        int pax = Math.max(0, a.getQuantitePassagersAssignes());
+        if (pax <= 0 && a.getReservation() != null) {
+            pax = Math.max(0, a.getReservation().getNbPassager());
+        }
+
+        prioriteNonAssigneeParReservation.put(
+                idRes,
+                prioriteNonAssigneeParReservation.getOrDefault(idRes, 0) + pax
+        );
+
+        if (a.getReservation() != null) {
+            reservationsParId.putIfAbsent(idRes, a.getReservation());
+        }
+    }
+
+    int totalRestantsNonAssignesUi = 0;
+    for (Reservation r : nonAssignees) {
+        if (r != null) {
+            totalRestantsNonAssignesUi += Math.max(0, r.getNbPassager());
+        }
+    }
 %>
 
 <nav class="navbar">
@@ -277,6 +383,75 @@
             <div class="stat-pill"><strong>Km totaux</strong><span><%= kmTotaux %> km</span></div>
         </div>
         <p class="meta-line">Date: <%= safe(dateChoisie) %> | Fenetre: <%= tempsAttente %> min | Total reservations traitees: <%= totalReservationsTraitees %></p>
+    </section>
+
+    <section class="card">
+        <h2>Sprint 8 : Priorite non assignees precedents</h2>
+        <p class="meta-line">
+            Heure retour vehicule : <%= safe(heureRetourVehiculeUi) %>
+            | Mode depart : <%= safe(modeDepartUi) %>
+            | Date/heure depart effective : <%= safe(dateHeureDepartEffectiveUi) %>
+        </p>
+        <p class="meta-line">
+            Fenetre attente retour vehicule : <%= safe(fenetreDebutUi) %> -> <%= safe(fenetreFinUi) %>
+        </p>
+
+        <h3 style="margin-top:10px;">1) Priorite non assignees precedents (liste embarquee)</h3>
+        <% if (prioriteNonAssigneeParReservation.isEmpty()) { %>
+            <div class="alert warning">Aucun embarquement prioritaire detecte pour cette execution.</div>
+        <% } else { %>
+            <table>
+                <thead>
+                <tr>
+                    <th>Reservation</th>
+                    <th>Client</th>
+                    <th>Hotel</th>
+                    <th>Passagers embarques (prioritaires)</th>
+                </tr>
+                </thead>
+                <tbody>
+                <% for (Map.Entry<Integer, Integer> e : prioriteNonAssigneeParReservation.entrySet()) {
+                       Integer idRes = e.getKey();
+                       int pax = Math.max(0, e.getValue());
+                       Reservation r = reservationsParId.get(idRes);
+                %>
+                    <tr>
+                        <td>R<%= safe(idRes) %></td>
+                        <td><%= r != null ? safe(r.getIdClient()) : "-" %></td>
+                        <td><%= (r != null && r.getHotel() != null) ? safe(r.getHotel().getNom()) : "-" %></td>
+                        <td><%= pax %></td>
+                    </tr>
+                <% } %>
+                </tbody>
+            </table>
+        <% } %>
+
+        <h3 style="margin-top:10px;">2) Fenetre attente retour vehicule (debut/fin)</h3>
+        <p>
+            Debut : <strong><%= safe(fenetreDebutUi) %></strong>
+            | Fin : <strong><%= safe(fenetreFinUi) %></strong>
+        </p>
+
+        <h3 style="margin-top:10px;">3) Depart effectif</h3>
+        <p>
+            Mode : <strong><%= safe(modeDepartUi) %></strong>
+            | Depart effectif : <strong><%= safe(dateHeureDepartEffectiveUi) %></strong>
+            <% if ("IMMEDIAT".equalsIgnoreCase(modeDepartUi)) { %>
+                <span class="meta-line">(depart immediat)</span>
+            <% } else if ("ATTENTE".equalsIgnoreCase(modeDepartUi)) { %>
+                <span class="meta-line">(depart en fin de fenetre ou vehicule plein)</span>
+            <% } %>
+        </p>
+
+        <h3 style="margin-top:10px;">4) Restants non assignes apres traitement</h3>
+        <p>
+            Reservations restantes : <strong><%= nonAssignees.size() %></strong>
+            | Passagers restants : <strong><%= totalRestantsNonAssignesUi %></strong>
+        </p>
+
+        <% if (detailsPriorisationAttr != null) { %>
+            <p class="meta-line">Details priorisation (controller) : <%= safe(detailsPriorisationAttr) %></p>
+        <% } %>
     </section>
 
     <c:if test="${not empty error}">
