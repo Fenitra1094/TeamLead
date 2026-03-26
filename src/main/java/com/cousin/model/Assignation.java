@@ -9,7 +9,9 @@ public class Assignation {
     private Integer idTrajet;
     private LocalDateTime dateHeureDepart;
     private LocalDateTime dateHeureRetour;
-    private int quantitePassagersAssignes;  // Sprint 7: support des assignations partielles
+    private Integer quantitePassagersAssignes;  // Sprint 7: support des assignations partielles
+    private Boolean fromNonAssigneePrecedent;  // Sprint 8: origine des passagers embarques
+    private LocalDateTime dateHeureDepartEffective; // Sprint 8: depart effectif retenu
 
     // Objets liés pour l'affichage
     private Reservation reservation;
@@ -27,6 +29,8 @@ public class Assignation {
         this.dateHeureDepart = dateHeureDepart;
         this.dateHeureRetour = dateHeureRetour;
         this.quantitePassagersAssignes = 0;
+        this.fromNonAssigneePrecedent = false;
+        this.dateHeureDepartEffective = dateHeureDepart;
     }
 
     public int getIdAssignation() {
@@ -93,11 +97,27 @@ public class Assignation {
         this.vehicule = vehicule;
     }
 
-    public int getQuantitePassagersAssignes() {
+    public Integer getQuantitePassagersAssignes() {
         return quantitePassagersAssignes;
     }
 
-    public void setQuantitePassagersAssignes(int quantitePassagersAssignes) {
+    public void setQuantitePassagersAssignes(Integer quantitePassagersAssignes) {
         this.quantitePassagersAssignes = quantitePassagersAssignes;
+    }
+
+    public Boolean getFromNonAssigneePrecedent() {
+        return fromNonAssigneePrecedent;
+    }
+
+    public void setFromNonAssigneePrecedent(Boolean fromNonAssigneePrecedent) {
+        this.fromNonAssigneePrecedent = fromNonAssigneePrecedent;
+    }
+
+    public LocalDateTime getDateHeureDepartEffective() {
+        return dateHeureDepartEffective;
+    }
+
+    public void setDateHeureDepartEffective(LocalDateTime dateHeureDepartEffective) {
+        this.dateHeureDepartEffective = dateHeureDepartEffective;
     }
 }

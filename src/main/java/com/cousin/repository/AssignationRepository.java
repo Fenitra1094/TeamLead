@@ -1,5 +1,6 @@
 package com.cousin.repository;
 
+import com.cousin.model.Assignation;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
@@ -11,8 +12,6 @@ import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 
-import com.cousin.model.Assignation;
-
 public class AssignationRepository {
 
     /**
@@ -20,8 +19,8 @@ public class AssignationRepository {
      * Sprint 7 : Supporte quantitePassagersAssignes pour les assignations partielles.
      */
     public void insertAssignation(Assignation assignation, Connection connection) throws SQLException {
-        String sql = "INSERT INTO Assignation(Id_Reservation, Id_Vehicule, date_heure_depart, date_heure_retour, Id_Trajet, quantitePassagersAssignes) " +
-                     "VALUES (?, ?, ?, ?, ?, ?)";
+        String sql = "INSERT INTO Assignation(Id_Reservation, Id_Vehicule, date_heure_depart, date_heure_retour, Id_Trajet, quantitePassagersAssignes, fromNonAssigneePrecedent, dateHeureDepartEffective) " +
+                     "VALUES (?, ?, ?, ?, ?, ?, ?, ?)";
 
         try (PreparedStatement statement = connection.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
             statement.setInt(1, assignation.getIdReservation());
@@ -36,7 +35,20 @@ public class AssignationRepository {
             }
            
             // Sprint 7 : Quantité de passagers assignés (support des splits)
-            statement.setInt(6, assignation.getQuantitePassagersAssignes());
+            statement.setInt(6, Math.max(0, assignation.getQuantitePassagersAssignes() != null ? assignation.getQuantitePassagersAssignes() : 0));
+
+            // Sprint 8 : Origine des passagers (non assignes precedents ou non)
+            statement.setBoolean(7, Boolean.TRUE.equals(assignation.getFromNonAssigneePrecedent()));
+
+            // Sprint 8 : Heure de depart effective utilisee
+            LocalDateTime departEffectif = assignation.getDateHeureDepartEffective() != null
+                    ? assignation.getDateHeureDepartEffective()
+                    : assignation.getDateHeureDepart();
+            if (departEffectif != null) {
+                statement.setTimestamp(8, Timestamp.valueOf(departEffectif));
+            } else {
+                statement.setNull(8, java.sql.Types.TIMESTAMP);
+            }
 
             statement.executeUpdate();
 
@@ -72,7 +84,9 @@ public class AssignationRepository {
     public Assignation findById(int idAssignation, Connection connection) throws SQLException {
         String sql = "SELECT Id_Assignation, Id_Reservation, Id_Vehicule, Id_Trajet, " +
                     "       date_heure_depart, date_heure_retour, " +
-                    "       COALESCE(quantitePassagersAssignes, 0) AS quantitePassagersAssignes " +
+                    "       COALESCE(quantitePassagersAssignes, 0) AS quantitePassagersAssignes, " +
+                    "       COALESCE(fromNonAssigneePrecedent, FALSE) AS fromNonAssigneePrecedent, " +
+                    "       dateHeureDepartEffective " +
                     "FROM Assignation " +
                     "WHERE Id_Assignation = ?";
 
@@ -94,7 +108,9 @@ public class AssignationRepository {
     public List<Assignation> findByDate(LocalDate date, Connection connection) throws SQLException {
         String sql = "SELECT Id_Assignation, Id_Reservation, Id_Vehicule, Id_Trajet, " +
                     "       date_heure_depart, date_heure_retour, " +
-                    "       COALESCE(quantitePassagersAssignes, 0) AS quantitePassagersAssignes " +
+                    "       COALESCE(quantitePassagersAssignes, 0) AS quantitePassagersAssignes, " +
+                    "       COALESCE(fromNonAssigneePrecedent, FALSE) AS fromNonAssigneePrecedent, " +
+                    "       dateHeureDepartEffective " +
                     "FROM Assignation " +
                     "WHERE DATE(date_heure_depart) = ? " +
                     "ORDER BY Id_Assignation";
@@ -135,6 +151,17 @@ public class AssignationRepository {
         
         // Sprint 7 : Charger la quantité de passagers assignés
         assignation.setQuantitePassagersAssignes(resultSet.getInt("quantitePassagersAssignes"));
+
+        // Sprint 8 : Charger l'origine des passagers
+        assignation.setFromNonAssigneePrecedent(resultSet.getBoolean("fromNonAssigneePrecedent"));
+
+        // Sprint 8 : Charger l'heure de départ effective (fallback sur date_heure_depart)
+        Timestamp departEffectifTs = resultSet.getTimestamp("dateHeureDepartEffective");
+        if (departEffectifTs != null) {
+            assignation.setDateHeureDepartEffective(departEffectifTs.toLocalDateTime());
+        } else {
+            assignation.setDateHeureDepartEffective(assignation.getDateHeureDepart());
+        }
 
         return assignation;
     }
