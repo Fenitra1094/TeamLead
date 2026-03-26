@@ -5,6 +5,7 @@ import com.cousin.service.ParametreService;
 import com.cousin.service.VehiculeService;
 import com.cousin.model.Assignation;
 import com.cousin.model.Reservation;
+import com.cousin.model.Trajet;
 import com.cousin.model.Vehicule;
 import com.cousin.util.AssignationResult;
 import com.cousin.util.GroupeTemps;
@@ -72,9 +73,40 @@ public class AssignationController {
             List<Reservation> reservationsNonAssignees = result.getReservationsNonAssignees() != null
                 ? result.getReservationsNonAssignees()
                 : new ArrayList<>();
-            List<com.cousin.model.Trajet> trajets = result.getTrajets() != null
+            List<Trajet> trajets = result.getTrajets() != null
                 ? result.getTrajets()
                 : new ArrayList<>();
+
+            // Sprint 8 - Donnees retour vehicule / depart effectif exposees au ModelView
+            Map<Integer, LocalDateTime> heureRetourVehiculeParVehicule = new LinkedHashMap<>();
+            for (Trajet trajet : trajets) {
+                if (trajet == null || trajet.getIdVehicule() <= 0 || trajet.getDateHeureRetour() == null) {
+                    continue;
+                }
+
+                LocalDateTime retourExistant = heureRetourVehiculeParVehicule.get(trajet.getIdVehicule());
+                if (retourExistant == null || trajet.getDateHeureRetour().isAfter(retourExistant)) {
+                    heureRetourVehiculeParVehicule.put(trajet.getIdVehicule(), trajet.getDateHeureRetour());
+                }
+            }
+
+            Map<Integer, LocalDateTime> dateHeureDepartEffectiveParAssignation = new LinkedHashMap<>();
+            Map<Integer, String> modeDepartParAssignation = new LinkedHashMap<>();
+            for (Assignation assignation : assignations) {
+                if (assignation == null || assignation.getIdAssignation() <= 0) {
+                    continue;
+                }
+
+                LocalDateTime departEffectif = assignation.getDateHeureDepart();
+                dateHeureDepartEffectiveParAssignation.put(assignation.getIdAssignation(), departEffectif);
+
+                LocalDateTime heureRetourVehicule = heureRetourVehiculeParVehicule.get(assignation.getIdVehicule());
+                String modeDepart = "ATTENTE";
+                if (departEffectif != null && heureRetourVehicule != null && departEffectif.equals(heureRetourVehicule)) {
+                    modeDepart = "IMMEDIAT";
+                }
+                modeDepartParAssignation.put(assignation.getIdAssignation(), modeDepart);
+            }
 
             Map<Integer, Vehicule> vehiculesUtilisesMap = new LinkedHashMap<>();
             Set<Integer> vehiculeIdsUtilises = new LinkedHashSet<>();
@@ -194,6 +226,7 @@ public class AssignationController {
             }
 
             List<Map<String, Object>> resumeGroupesSplit = new ArrayList<>();
+            List<Map<String, Object>> detailsPriorisationNonAssigneesPrecedents = new ArrayList<>();
             for (int i = 0; i < groupes.size(); i++) {
                 GroupeTemps groupe = groupes.get(i);
                 List<Reservation> reservationsGroupe = (groupe != null && groupe.getReservations() != null)
@@ -232,6 +265,22 @@ public class AssignationController {
                     }
 
                     totalAssignes += resolvePassagersAssignes(assignation);
+
+                    // Sprint 8 - Reservation assignee dans ce groupe mais absente du lot natif du groupe
+                    // => candidate priorisation "non assignee precedent".
+                    if (!reservationIdsGroupe.contains(idReservation)) {
+                        Map<String, Object> detailPriorite = new LinkedHashMap<>();
+                        detailPriorite.put("numeroGroupe", i + 1);
+                        detailPriorite.put("idAssignation", assignation.getIdAssignation());
+                        detailPriorite.put("idReservation", idReservation);
+                        detailPriorite.put("idVehicule", assignation.getIdVehicule());
+                        detailPriorite.put("quantitePassagersAssignes", resolvePassagersAssignes(assignation));
+                        detailPriorite.put("dateHeureDepartEffective", assignation.getDateHeureDepart());
+                        detailPriorite.put("dateHeureRetourVehicule", heureRetourVehiculeParVehicule.get(assignation.getIdVehicule()));
+                        detailPriorite.put("modeDepart",
+                                modeDepartParAssignation.getOrDefault(assignation.getIdAssignation(), "ATTENTE"));
+                        detailsPriorisationNonAssigneesPrecedents.add(detailPriorite);
+                    }
                 }
 
                 Map<String, Object> resume = new LinkedHashMap<>();
@@ -258,6 +307,10 @@ public class AssignationController {
             mv.addAttribute("passagersAssignesParReservation", passagersAssignesParReservation);
             mv.addAttribute("passagersRestantsParReservation", passagersRestantsParReservation);
             mv.addAttribute("resumeGroupesSplit", resumeGroupesSplit);
+            mv.addAttribute("heureRetourVehicule", heureRetourVehiculeParVehicule);
+            mv.addAttribute("modeDepart", modeDepartParAssignation);
+            mv.addAttribute("dateHeureDepartEffective", dateHeureDepartEffectiveParAssignation);
+            mv.addAttribute("detailsPriorisationNonAssigneesPrecedents", detailsPriorisationNonAssigneesPrecedents);
             // Ajout : Map des réservations par véhicule pour affichage JSP
             Map<Integer, List<Reservation>> reservationsParVehicule = new LinkedHashMap<>();
             for (Assignation assignation : assignations) {
