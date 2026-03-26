@@ -3,8 +3,8 @@ SPRINT 8 - Traitement prioritaire des non assignes avec vehicule revenu
 ROLE :
 Team Lead - ETU 3265
 
-DEV 1 - ETU xxxx
-DEV 2 - ETU xxxx
+DEV 1 - ETU 3371
+DEV 2 - ETU 3273
 
 Tout sur BackOffice
 
