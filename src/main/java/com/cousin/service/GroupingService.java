@@ -1,8 +1,5 @@
 package com.cousin.service;
 
-import com.cousin.model.Reservation;
-import com.cousin.util.GroupeTemps;
-import com.cousin.util.GroupeVol;
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
@@ -12,6 +9,11 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+
+import com.cousin.model.Reservation;
+import com.cousin.util.FenetreRetourVehicule;
+import com.cousin.util.GroupeTemps;
+import com.cousin.util.GroupeVol;
 
 public class GroupingService {
 
@@ -106,4 +108,61 @@ public class GroupingService {
 
         return groupes;
     }
+
+    public FenetreRetourVehicule construireFenetreRetourVehicule(
+            LocalDateTime heureRetourVehicule, int tempsAttenteMinutes, List<Reservation> reservationsJour) {
+        LocalDateTime finFenetre = heureRetourVehicule.plusMinutes(Math.max(0, tempsAttenteMinutes));
+        List<Reservation> dansFenetre = new ArrayList<>();
+        
+        if (reservationsJour != null) {
+            for (Reservation r : reservationsJour) {
+                if (r != null && r.getDateHeureArrive() != null
+                        && !r.getDateHeureArrive().isBefore(heureRetourVehicule)
+                        && !r.getDateHeureArrive().isAfter(finFenetre)) {
+                    dansFenetre.add(r);
+                }
+            }
+            dansFenetre.sort(Comparator.comparingInt(Reservation::getNbPassager).reversed());
+        }
+        
+        return new FenetreRetourVehicule(heureRetourVehicule, finFenetre, dansFenetre);
+    }
+
+    public List<Reservation> fusionnerAvecRegroupementExistant(
+            GroupeTemps groupeCourant,
+            FenetreRetourVehicule fenetreRetour,
+            List<Reservation> nonAssigneesPrecedentes) {
+        
+        Set<Integer> idsExistant = new HashSet<>();
+        List<Reservation> resultat = new ArrayList<>();
+        
+        if (nonAssigneesPrecedentes != null) {
+            for (Reservation r : nonAssigneesPrecedentes) {
+                if (r != null && r.getIdReservation() > 0) {
+                    resultat.add(r);
+                    idsExistant.add(r.getIdReservation());
+                }
+            }
+        }
+        
+        if (fenetreRetour != null && fenetreRetour.getReservationsDansFenetre() != null) {
+            for (Reservation r : fenetreRetour.getReservationsDansFenetre()) {
+                if (r != null && r.getIdReservation() > 0 && !idsExistant.contains(r.getIdReservation())) {
+                    resultat.add(r);
+                    idsExistant.add(r.getIdReservation());
+                }
+            }
+        }
+        
+        if (groupeCourant != null && groupeCourant.getReservations() != null) {
+            for (Reservation r : groupeCourant.getReservations()) {
+                if (r != null && r.getIdReservation() > 0 && !idsExistant.contains(r.getIdReservation())) {
+                    resultat.add(r);
+                    idsExistant.add(r.getIdReservation());
+                }
+            }
+        }
+        
+        return resultat;
+}
 }
