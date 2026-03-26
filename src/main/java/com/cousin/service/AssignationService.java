@@ -22,6 +22,7 @@ import com.cousin.util.AssignationResult;
 import com.cousin.util.DbConnection;
 import com.cousin.util.DureeResult;
 import com.cousin.util.GroupeTemps;
+import com.cousin.util.RetourVehiculeResult;
 
 public class AssignationService {
     private final AssignationRepository assignationRepository;
@@ -29,7 +30,6 @@ public class AssignationService {
     private final VehiculeRepository vehiculeRepository;
     private final TrajetRepository trajetRepository;
     private final GroupingService groupingService;
-    private final ParametreService parametreService;
     private final RouteService routeService;
     private final DureeService dureeService;
 
@@ -39,7 +39,6 @@ public class AssignationService {
         this.vehiculeRepository = new VehiculeRepository();
         this.trajetRepository = new TrajetRepository();
         this.groupingService = new GroupingService();
-        this.parametreService = new ParametreService();
         this.routeService = new RouteService();
         this.dureeService = new DureeService();
     }
@@ -77,10 +76,16 @@ public class AssignationService {
                     GroupeTemps groupe = groupes.get(idxGroupe);
                     boolean isLastGroupe = (idxGroupe == groupes.size() - 1);
 
-                    List<Reservation> reservationsATraiter = new ArrayList<>(groupe.getReservations());
-                    reservationsATraiter.addAll(reservationsReportees);
+                    // Sprint 8 : file prioritaire des non assignes precedents.
+                    List<Reservation> nonAssigneesPrecedentes = new ArrayList<>(reservationsReportees);
+                    List<Reservation> reservationsNouvelles = new ArrayList<>(groupe.getReservations());
                     reservationsReportees.clear();
-                    reservationsATraiter.sort((r1, r2) -> Integer.compare(r2.getNbPassager(), r1.getNbPassager()));
+
+                    nonAssigneesPrecedentes.sort((r1, r2) -> Integer.compare(r2.getNbPassager(), r1.getNbPassager()));
+                    reservationsNouvelles.sort((r1, r2) -> Integer.compare(r2.getNbPassager(), r1.getNbPassager()));
+
+                    List<Reservation> reservationsATraiter = new ArrayList<>(nonAssigneesPrecedentes);
+                    reservationsATraiter.addAll(reservationsNouvelles);
 
                     LocalDateTime dateDepartGroupe = groupe.getHeureDepartGroupe();
                     LocalDateTime finGroupe = dateDepartGroupe.plusMinutes(tempsAttenteMinutes);
@@ -156,6 +161,23 @@ public class AssignationService {
                                 if (vehiculeChoisi.getDernierRetour() != null &&
                                         vehiculeChoisi.getDernierRetour().isAfter(dateDepartTrajet)) {
                                     dateDepartTrajet = vehiculeChoisi.getDernierRetour();
+                                }
+
+                                if (vehiculeChoisi.getDernierRetour() != null) {
+                                    RetourVehiculeResult retourVehiculeResult = traiterVehiculeRevenu(
+                                            vehiculeChoisi,
+                                            vehiculeChoisi.getDernierRetour(),
+                                            extraireReservationsRestantes(nonAssigneesPrecedentes, passagersRestantsParReservation),
+                                            extraireReservationsRestantes(reservationsNouvelles, passagersRestantsParReservation),
+                                            tempsAttenteMinutes,
+                                            connection
+                                    );
+
+                                    if (retourVehiculeResult != null
+                                            && retourVehiculeResult.getDateDepartEffective() != null
+                                            && retourVehiculeResult.getDateDepartEffective().isAfter(dateDepartTrajet)) {
+                                        dateDepartTrajet = retourVehiculeResult.getDateDepartEffective();
+                                    }
                                 }
 
                                 // Garde-fou: jamais avant l'heure de disponibilite declaree du vehicule.
@@ -479,6 +501,142 @@ public class AssignationService {
         return vehicule.getNbPlace() - capaciteParVehicule.getOrDefault(vehicule.getIdVehicule(), 0);
     }
 
+    // Sprint 8 : logique dediee retour vehicule + priorite non assignes precedents.
+    private RetourVehiculeResult traiterVehiculeRevenu(
+            Vehicule vehicule,
+            LocalDateTime heureRetourVehicule,
+            List<Reservation> nonAssigneesPrecedentes,
+            List<Reservation> reservationsNouvelles,
+            int tempsAttenteMinutes,
+            @SuppressWarnings("unused") Connection conn) {
+
+        if (vehicule == null || heureRetourVehicule == null) {
+            return RetourVehiculeResult.empty();
+        }
+
+        int capaciteVehicule = Math.max(0, vehicule.getNbPlace());
+        if (capaciteVehicule == 0) {
+            return RetourVehiculeResult.empty();
+        }
+
+        int totalPrecedents = sommePassagers(nonAssigneesPrecedentes);
+        if (totalPrecedents <= 0) {
+            return RetourVehiculeResult.empty();
+        }
+
+        if (totalPrecedents >= capaciteVehicule) {
+            RetourVehiculeResult result = new RetourVehiculeResult();
+            result.setModeDepart("IMMEDIAT");
+            result.setDateDepartEffective(heureRetourVehicule);
+            result.setTotalEmbarquesPrecedents(capaciteVehicule);
+            result.setTotalRestantsPrecedents(totalPrecedents - capaciteVehicule);
+            return result;
+        }
+
+        LocalDateTime finFenetre = heureRetourVehicule.plusMinutes(Math.max(0, tempsAttenteMinutes));
+        int placesRestantes = capaciteVehicule - totalPrecedents;
+
+        List<Reservation> reservationsDansFenetre = new ArrayList<>();
+        if (reservationsNouvelles != null) {
+            for (Reservation reservation : reservationsNouvelles) {
+                if (reservation == null || reservation.getDateHeureArrive() == null) {
+                    continue;
+                }
+                if (!reservation.getDateHeureArrive().isBefore(heureRetourVehicule)
+                        && !reservation.getDateHeureArrive().isAfter(finFenetre)) {
+                    reservationsDansFenetre.add(reservation);
+                }
+            }
+        }
+
+        reservationsDansFenetre.sort((r1, r2) -> {
+            if (r1.getDateHeureArrive() == null && r2.getDateHeureArrive() == null) {
+                return 0;
+            }
+            if (r1.getDateHeureArrive() == null) {
+                return 1;
+            }
+            if (r2.getDateHeureArrive() == null) {
+                return -1;
+            }
+            return r1.getDateHeureArrive().compareTo(r2.getDateHeureArrive());
+        });
+
+        int cumulNouveaux = 0;
+        LocalDateTime instantRemplissage = null;
+        for (Reservation reservation : reservationsDansFenetre) {
+            cumulNouveaux += Math.max(0, reservation.getNbPassager());
+            if (cumulNouveaux >= placesRestantes) {
+                instantRemplissage = reservation.getDateHeureArrive();
+                break;
+            }
+        }
+
+        RetourVehiculeResult result = new RetourVehiculeResult();
+        result.setFenetreDebut(heureRetourVehicule);
+        result.setFenetreFin(finFenetre);
+        result.setTotalEmbarquesPrecedents(totalPrecedents);
+
+        if (instantRemplissage != null) {
+            result.setModeDepart("IMMEDIAT");
+            result.setDateDepartEffective(instantRemplissage);
+            result.setTotalEmbarquesNouveaux(Math.max(0, placesRestantes));
+            result.setTotalRestantsPrecedents(0);
+            result.setTotalRestantsNouveaux(Math.max(0, cumulNouveaux - placesRestantes));
+        } else {
+            result.setModeDepart("ATTENTE");
+            result.setDateDepartEffective(finFenetre);
+            result.setTotalEmbarquesNouveaux(Math.max(0, cumulNouveaux));
+            result.setTotalRestantsPrecedents(0);
+            result.setTotalRestantsNouveaux(Math.max(0, placesRestantes - cumulNouveaux));
+        }
+
+        return result;
+    }
+
+    private int sommePassagers(List<Reservation> reservations) {
+        int total = 0;
+        if (reservations == null) {
+            return total;
+        }
+
+        for (Reservation reservation : reservations) {
+            if (reservation == null) {
+                continue;
+            }
+            total += Math.max(0, reservation.getNbPassager());
+        }
+        return total;
+    }
+
+    private List<Reservation> extraireReservationsRestantes(
+            List<Reservation> source,
+            java.util.Map<Integer, Integer> passagersRestantsParReservation) {
+
+        List<Reservation> restants = new ArrayList<>();
+        if (source == null) {
+            return restants;
+        }
+
+        for (Reservation reservation : source) {
+            if (reservation == null || reservation.getIdReservation() <= 0) {
+                continue;
+            }
+
+            int restantsPassagers = passagersRestantsParReservation.getOrDefault(
+                    reservation.getIdReservation(),
+                    Math.max(0, reservation.getNbPassager())
+            );
+            if (restantsPassagers <= 0) {
+                continue;
+            }
+
+            restants.add(copierReservationAvecReste(reservation, restantsPassagers));
+        }
+
+        return restants;
+    }
+
     private Reservation choisirReservationFillerPlusProche(
             List<Reservation> reservationsATraiter,
             int startIndex,
@@ -739,29 +897,6 @@ public class AssignationService {
             etape.setIdTrajet(idTrajet);
             trajetRepository.insertTrajetEtape(etape, connection);
         }
-    }
-
-
-    /**
-     * @deprecated Méthode obsolète Sprint 6. Remplacée par le tri DESC + sélection "plus proche".
-     */
-    @Deprecated
-    private Reservation extraireReservationMaxPassagers(List<Reservation> reservations) {
-        if (reservations.isEmpty()) {
-            return null;
-        }
-        Reservation max = reservations.get(0);
-        for (Reservation r : reservations) {
-            if (r.getNbPassager() > max.getNbPassager()) {
-                max = r;
-            }
-        }
-        reservations.remove(max);
-        return max;
-    }
-
-    private LocalDateTime estimerDateRetour(LocalDateTime dateDepart) {
-        return dateDepart.toLocalDate().plusDays(1).atStartOfDay();
     }
 
     private void rollbackQuietly(Connection connection) {
