@@ -1,5 +1,9 @@
 package com.cousin.service;
 
+import com.cousin.model.Reservation;
+import com.cousin.util.FenetreRetourVehicule;
+import com.cousin.util.GroupeTemps;
+import com.cousin.util.GroupeVol;
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
@@ -10,12 +14,33 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import com.cousin.model.Reservation;
-import com.cousin.util.FenetreRetourVehicule;
-import com.cousin.util.GroupeTemps;
-import com.cousin.util.GroupeVol;
-
 public class GroupingService {
+
+    public FenetreRetourVehicule construireFenetreRetourVehicule(
+            LocalDateTime heureRetourVehicule,
+            int tempsAttenteMinutes,
+            List<Reservation> reservationsNouvelles) {
+
+        LocalDateTime debut = heureRetourVehicule;
+        LocalDateTime fin = heureRetourVehicule.plusMinutes(Math.max(0, tempsAttenteMinutes));
+
+        List<Reservation> reservationsDansFenetre = new ArrayList<>();
+        if (reservationsNouvelles != null) {
+            for (Reservation reservation : reservationsNouvelles) {
+                if (reservation == null || reservation.getDateHeureArrive() == null) {
+                    continue;
+                }
+
+                LocalDateTime arrivee = reservation.getDateHeureArrive();
+                if (!arrivee.isBefore(debut) && !arrivee.isAfter(fin)) {
+                    reservationsDansFenetre.add(reservation);
+                }
+            }
+        }
+
+        reservationsDansFenetre.sort(Comparator.comparing(Reservation::getDateHeureArrive));
+        return new FenetreRetourVehicule(debut, fin, reservationsDansFenetre);
+    }
 
     public List<GroupeTemps> grouperParTempsAttente(List<Reservation> reservations, int tempsAttenteMinutes) {
         List<GroupeTemps> groupes = new ArrayList<>();
@@ -46,6 +71,7 @@ public class GroupingService {
 
             LocalDateTime datePivot = pivot.getDateHeureArrive();
             LocalDateTime fenetreFin = datePivot.plusMinutes(tempsAttenteMinutes);
+            LocalDateTime maxHeureGroupe = datePivot;
 
             List<Reservation> reservationsGroupe = new ArrayList<>();
             reservationsGroupe.add(pivot);
@@ -62,6 +88,9 @@ public class GroupingService {
                 if (!heureCandidate.isAfter(fenetreFin)) {
                     reservationsGroupe.add(candidate);
                     traites.add(idCandidate);
+                    if (heureCandidate.isAfter(maxHeureGroupe)) {
+                        maxHeureGroupe = heureCandidate;
+                    }
                 } else {
                     // Liste triee ASC, aucune reservation suivante ne peut entrer dans la fenetre.
                     break;
@@ -71,8 +100,8 @@ public class GroupingService {
             reservationsGroupe.sort(Comparator.comparingInt(Reservation::getNbPassager).reversed());
 
             GroupeTemps groupe = new GroupeTemps();
-            // La reference du groupe est l'heure minimale (premiere reservation de la fenetre).
-            groupe.setHeureDepartGroupe(datePivot);
+            // Sprint 5/7/8 : départ groupe = max(DateHeureArrive) du groupe.
+            groupe.setHeureDepartGroupe(maxHeureGroupe);
             groupe.setTempsAttenteMinutes(tempsAttenteMinutes);
             groupe.setReservations(reservationsGroupe);
             groupes.add(groupe);
@@ -108,61 +137,4 @@ public class GroupingService {
 
         return groupes;
     }
-
-    public FenetreRetourVehicule construireFenetreRetourVehicule(
-            LocalDateTime heureRetourVehicule, int tempsAttenteMinutes, List<Reservation> reservationsJour) {
-        LocalDateTime finFenetre = heureRetourVehicule.plusMinutes(Math.max(0, tempsAttenteMinutes));
-        List<Reservation> dansFenetre = new ArrayList<>();
-        
-        if (reservationsJour != null) {
-            for (Reservation r : reservationsJour) {
-                if (r != null && r.getDateHeureArrive() != null
-                        && !r.getDateHeureArrive().isBefore(heureRetourVehicule)
-                        && !r.getDateHeureArrive().isAfter(finFenetre)) {
-                    dansFenetre.add(r);
-                }
-            }
-            dansFenetre.sort(Comparator.comparingInt(Reservation::getNbPassager).reversed());
-        }
-        
-        return new FenetreRetourVehicule(heureRetourVehicule, finFenetre, dansFenetre);
-    }
-
-    public List<Reservation> fusionnerAvecRegroupementExistant(
-            GroupeTemps groupeCourant,
-            FenetreRetourVehicule fenetreRetour,
-            List<Reservation> nonAssigneesPrecedentes) {
-        
-        Set<Integer> idsExistant = new HashSet<>();
-        List<Reservation> resultat = new ArrayList<>();
-        
-        if (nonAssigneesPrecedentes != null) {
-            for (Reservation r : nonAssigneesPrecedentes) {
-                if (r != null && r.getIdReservation() > 0) {
-                    resultat.add(r);
-                    idsExistant.add(r.getIdReservation());
-                }
-            }
-        }
-        
-        if (fenetreRetour != null && fenetreRetour.getReservationsDansFenetre() != null) {
-            for (Reservation r : fenetreRetour.getReservationsDansFenetre()) {
-                if (r != null && r.getIdReservation() > 0 && !idsExistant.contains(r.getIdReservation())) {
-                    resultat.add(r);
-                    idsExistant.add(r.getIdReservation());
-                }
-            }
-        }
-        
-        if (groupeCourant != null && groupeCourant.getReservations() != null) {
-            for (Reservation r : groupeCourant.getReservations()) {
-                if (r != null && r.getIdReservation() > 0 && !idsExistant.contains(r.getIdReservation())) {
-                    resultat.add(r);
-                    idsExistant.add(r.getIdReservation());
-                }
-            }
-        }
-        
-        return resultat;
-}
 }

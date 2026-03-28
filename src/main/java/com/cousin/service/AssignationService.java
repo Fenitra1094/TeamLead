@@ -21,6 +21,7 @@ import com.cousin.repository.VehiculeRepository;
 import com.cousin.util.AssignationResult;
 import com.cousin.util.DbConnection;
 import com.cousin.util.DureeResult;
+import com.cousin.util.FenetreRetourVehicule;
 import com.cousin.util.GroupeTemps;
 import com.cousin.util.RetourVehiculeResult;
 
@@ -73,303 +74,82 @@ public class AssignationService {
                 groupes = groupingService.grouperParTempsAttente(reservations, tempsAttenteMinutes);
 
                 for (int idxGroupe = 0; idxGroupe < groupes.size(); idxGroupe++) {
-                    GroupeTemps groupe = groupes.get(idxGroupe);
-                    boolean isLastGroupe = (idxGroupe == groupes.size() - 1);
+                    GroupeTemps groupeNaturel = groupes.get(idxGroupe);
 
-                    // Sprint 8 : file prioritaire des non assignes precedents.
-                    List<Reservation> nonAssigneesPrecedentes = new ArrayList<>(reservationsReportees);
-                    List<Reservation> reservationsNouvelles = new ArrayList<>(groupe.getReservations());
-                    reservationsReportees.clear();
+                    List<GroupeTemps> groupesAExecuter = new ArrayList<>();
+                    List<Integer> vehiculesPrioritaires = new ArrayList<>();
+                    List<Reservation> reservationsNaturellesRestantes = new ArrayList<>(groupeNaturel.getReservations());
 
-                    nonAssigneesPrecedentes.sort((r1, r2) -> Integer.compare(r2.getNbPassager(), r1.getNbPassager()));
-                    reservationsNouvelles.sort((r1, r2) -> Integer.compare(r2.getNbPassager(), r1.getNbPassager()));
+                    if (!reservationsReportees.isEmpty() && idxGroupe > 0) {
+                        LocalDateTime finFenetreGroupePrecedent = groupes.get(idxGroupe - 1)
+                                .getHeureDepartGroupe()
+                                .plusMinutes(Math.max(0, tempsAttenteMinutes));
+                        LocalDateTime debutGroupeNaturel = groupeNaturel.getHeureDepartGroupe();
 
-                    List<Reservation> reservationsATraiter = new ArrayList<>(nonAssigneesPrecedentes);
-                    reservationsATraiter.addAll(reservationsNouvelles);
+                        Vehicule vehiculeCreateur = trouverVehiculeCreateurGroupe(
+                                date,
+                                finFenetreGroupePrecedent,
+                                debutGroupeNaturel,
+                                connection
+                        );
 
-                    LocalDateTime dateDepartGroupe = groupe.getHeureDepartGroupe();
-                    LocalDateTime finGroupe = dateDepartGroupe.plusMinutes(tempsAttenteMinutes);
-
-                    java.util.Map<Integer, Integer> capaciteUtiliseeParVehicule = new java.util.HashMap<>();
-                    java.util.Map<Integer, Trajet> trajetParVehicule = new java.util.HashMap<>();
-                    java.util.Map<Integer, java.util.LinkedHashSet<Integer>> hotelsParVehicule = new java.util.HashMap<>();
-                    java.util.Map<Integer, List<Assignation>> assignationsParVehicule = new java.util.HashMap<>();
-                    java.util.Set<Integer> reservationsTraitees = new java.util.HashSet<>();
-                    List<Reservation> reportsDuGroupe = new ArrayList<>();
-                    List<Trajet> trajetsDuGroupe = new ArrayList<>();
-
-                    java.util.Map<Integer, Reservation> reservationsParIdDansGroupe = new java.util.LinkedHashMap<>();
-                    java.util.Map<Integer, Integer> passagersRestantsParReservation = new java.util.HashMap<>();
-                    for (Reservation reservation : reservationsATraiter) {
-                        if (reservation != null && reservation.getIdReservation() > 0) {
-                            reservationsParIdDansGroupe.putIfAbsent(reservation.getIdReservation(), reservation);
-                            passagersRestantsParReservation.put(
-                                    reservation.getIdReservation(),
-                                    Math.max(0, reservation.getNbPassager())
+                        if (vehiculeCreateur != null && vehiculeCreateur.getDernierRetour() != null) {
+                            FenetreRetourVehicule fenetre = groupingService.construireFenetreRetourVehicule(
+                                    vehiculeCreateur.getDernierRetour(),
+                                    tempsAttenteMinutes,
+                                    reservationsNaturellesRestantes
                             );
-                        }
-                    }
 
-                    for (int idxRes = 0; idxRes < reservationsATraiter.size(); idxRes++) {
-                        Reservation reservationCourante = reservationsATraiter.get(idxRes);
-
-                        if (reservationCourante == null || reservationCourante.getIdReservation() <= 0) {
-                            continue;
-                        }
-                        if (reservationsTraitees.contains(reservationCourante.getIdReservation())) {
-                            continue;
-                        }
-                        if (reservationCourante.getHotel() == null) {
-                            System.err.println("WARN: Reservation " + reservationCourante.getIdReservation() + " has no hotel, skipping");
-                            continue;
-                        }
-
-                        int idReservationCourante = reservationCourante.getIdReservation();
-                        int passagersRestants = passagersRestantsParReservation.getOrDefault(
-                                idReservationCourante,
-                                Math.max(0, reservationCourante.getNbPassager())
-                        );
-                        if (passagersRestants <= 0) {
-                            reservationsTraitees.add(idReservationCourante);
-                            continue;
-                        }
-                        boolean dejaReportee = false;
-                        java.util.Set<Integer> vehiculesExclus = new java.util.HashSet<>();
-
-                        while (passagersRestants > 0) {
-                            try {
-                                List<Vehicule> candidats = vehiculeRepository.getVehiculesCandidatsPourSplit(
-                                        passagersRestants, date, dateDepartGroupe, finGroupe, connection);
-
-                                Vehicule vehiculeChoisi = selectionnerVehiculePlusProche(
-                                        candidats, passagersRestants, capaciteUtiliseeParVehicule, vehiculesExclus);
-
-                                if (vehiculeChoisi == null) {
-                                    reportsDuGroupe.add(copierReservationAvecReste(reservationCourante, passagersRestants));
-                                    dejaReportee = true;
-                                    break;
-                                }
-
-                                int capaciteDisponible = getCapaciteDisponible(vehiculeChoisi, capaciteUtiliseeParVehicule);
-                                if (capaciteDisponible <= 0) {
-                                    vehiculesExclus.add(vehiculeChoisi.getIdVehicule());
-                                    continue;
-                                }
-
-                                Trajet trajet = trajetParVehicule.get(vehiculeChoisi.getIdVehicule());
-                                LocalDateTime dateDepartTrajet = dateDepartGroupe;
-                                if (vehiculeChoisi.getDernierRetour() != null &&
-                                        vehiculeChoisi.getDernierRetour().isAfter(dateDepartTrajet)) {
-                                    dateDepartTrajet = vehiculeChoisi.getDernierRetour();
-                                }
-
-                                if (vehiculeChoisi.getDernierRetour() != null) {
-                                    RetourVehiculeResult retourVehiculeResult = traiterVehiculeRevenu(
-                                            vehiculeChoisi,
-                                            vehiculeChoisi.getDernierRetour(),
-                                            extraireReservationsRestantes(nonAssigneesPrecedentes, passagersRestantsParReservation),
-                                            extraireReservationsRestantes(reservationsNouvelles, passagersRestantsParReservation),
-                                            tempsAttenteMinutes,
-                                            connection
-                                    );
-
-                                    if (retourVehiculeResult != null
-                                            && retourVehiculeResult.getDateDepartEffective() != null
-                                            && retourVehiculeResult.getDateDepartEffective().isAfter(dateDepartTrajet)) {
-                                        dateDepartTrajet = retourVehiculeResult.getDateDepartEffective();
-                                    }
-                                }
-
-                                // Garde-fou: jamais avant l'heure de disponibilite declaree du vehicule.
-                                LocalTime heureDisponibiliteVehicule = vehiculeChoisi.getHeureDisponibilite() != null
-                                        ? vehiculeChoisi.getHeureDisponibilite()
-                                        : LocalTime.MIDNIGHT;
-                                LocalDateTime disponibiliteDuJour = LocalDateTime.of(date, heureDisponibiliteVehicule);
-                                if (disponibiliteDuJour.isAfter(dateDepartTrajet)) {
-                                    dateDepartTrajet = disponibiliteDuJour;
-                                }
-
-                                if (trajet == null) {
-                                    List<Integer> hotelsDansVehicule = new ArrayList<>();
-                                    if (reservationCourante.getHotel() != null) {
-                                        hotelsDansVehicule.add(reservationCourante.getHotel().getIdHotel());
-                                    }
-
-                                    List<TrajetEtape> etapes = routeService.calculerRoute(hotelsDansVehicule);
-                                    DureeResult dureeResult = dureeService.calculerDureeMultiStop(dateDepartTrajet, etapes);
-
-                                    if (dureeResult.getDureeMinutes() <= 0) {
-                                        vehiculesExclus.add(vehiculeChoisi.getIdVehicule());
-                                        continue;
-                                    }
-
-                                    trajet = new Trajet(0, vehiculeChoisi.getIdVehicule(),
-                                            dateDepartTrajet, dureeResult.getDateRetour(), date);
-                                    trajet.setVehicule(vehiculeChoisi);
-                                    trajet.setEtapes(new ArrayList<>());
-
-                                    int idTrajet = trajetRepository.insertTrajet(trajet, connection);
-                                    trajet.setIdTrajet(idTrajet);
-
-                                    for (TrajetEtape etape : etapes) {
-                                        etape.setIdTrajet(idTrajet);
-                                        trajetRepository.insertTrajetEtape(etape, connection);
-                                        trajet.getEtapes().add(etape);
-                                    }
-
-                                    trajets.add(trajet);
-                                    trajetsDuGroupe.add(trajet);
-                                    trajetParVehicule.put(vehiculeChoisi.getIdVehicule(), trajet);
-                                    capaciteUtiliseeParVehicule.putIfAbsent(vehiculeChoisi.getIdVehicule(), 0);
-
-                                    java.util.LinkedHashSet<Integer> hotelsVehicule = new java.util.LinkedHashSet<>();
-                                    if (reservationCourante.getHotel() != null) {
-                                        hotelsVehicule.add(reservationCourante.getHotel().getIdHotel());
-                                    }
-                                    hotelsParVehicule.put(vehiculeChoisi.getIdVehicule(), hotelsVehicule);
-                                }
-
-                                synchronizeTrajetHotelsForReservation(
-                                        trajet,
-                                        vehiculeChoisi.getIdVehicule(),
-                                        reservationCourante,
-                                        hotelsParVehicule,
-                                        connection,
-                                        assignationsParVehicule
+                            List<Reservation> reservationsIntermediaires = new ArrayList<>(fenetre.getReservationsDansFenetre());
+                            if (!reservationsIntermediaires.isEmpty() || !reservationsReportees.isEmpty()) {
+                                GroupeTemps groupeIntermediaire = new GroupeTemps();
+                                groupeIntermediaire.setHeureDepartGroupe(
+                                        vehiculeCreateur.getDernierRetour().truncatedTo(ChronoUnit.MINUTES)
                                 );
+                                groupeIntermediaire.setTempsAttenteMinutes(tempsAttenteMinutes);
+                                groupeIntermediaire.setReservations(reservationsIntermediaires);
+                                groupesAExecuter.add(groupeIntermediaire);
+                                vehiculesPrioritaires.add(vehiculeCreateur.getIdVehicule());
 
-                                int personnesAEmbarquer = Math.min(passagersRestants, capaciteDisponible);
-
-                                Assignation assignation = new Assignation();
-                                assignation.setIdReservation(reservationCourante.getIdReservation());
-                                assignation.setIdVehicule(vehiculeChoisi.getIdVehicule());
-                                assignation.setIdTrajet(trajet.getIdTrajet());
-                                assignation.setDateHeureDepart(dateDepartTrajet);
-                                assignation.setDateHeureRetour(trajet.getDateHeureRetour());
-                                assignation.setQuantitePassagersAssignes(personnesAEmbarquer);
-                                assignation.setReservation(reservationCourante);
-                                assignation.setVehicule(vehiculeChoisi);
-
-                                assignationRepository.insertAssignation(assignation, connection);
-                                assignations.add(assignation);
-                                assignationsParVehicule
-                                        .computeIfAbsent(vehiculeChoisi.getIdVehicule(), key -> new ArrayList<>())
-                                        .add(assignation);
-
-                                int nouvelleUtilisation = capaciteUtiliseeParVehicule
-                                        .getOrDefault(vehiculeChoisi.getIdVehicule(), 0)
-                                        + personnesAEmbarquer;
-                                capaciteUtiliseeParVehicule.put(vehiculeChoisi.getIdVehicule(), nouvelleUtilisation);
-
-                                passagersRestants -= personnesAEmbarquer;
-                                passagersRestantsParReservation.put(idReservationCourante, Math.max(0, passagersRestants));
-
-                                if (passagersRestants == 0) {
-                                    reservationsTraitees.add(idReservationCourante);
-                                }
-
-                                int capaciteRestante = getCapaciteDisponible(vehiculeChoisi, capaciteUtiliseeParVehicule);
-                                while (capaciteRestante > 0) {
-                                    Reservation reservationFiller = choisirReservationFillerPlusProche(
-                                            reservationsATraiter,
-                                            idxRes + 1,
-                                            reservationsTraitees,
-                                            passagersRestantsParReservation,
-                                            capaciteRestante
-                                    );
-
-                                    if (reservationFiller == null) {
-                                        break;
-                                    }
-
-                                    int idReservationFiller = reservationFiller.getIdReservation();
-                                    int passagersFillerRestants = passagersRestantsParReservation.getOrDefault(
-                                            idReservationFiller,
-                                            Math.max(0, reservationFiller.getNbPassager())
-                                    );
-
-                                    if (passagersFillerRestants <= 0) {
-                                        reservationsTraitees.add(idReservationFiller);
-                                        continue;
-                                    }
-
-                                    synchronizeTrajetHotelsForReservation(
-                                            trajet,
-                                            vehiculeChoisi.getIdVehicule(),
-                                            reservationFiller,
-                                            hotelsParVehicule,
-                                            connection,
-                                            assignationsParVehicule
-                                    );
-
-                                    int personnesFillerAEmbarquer = Math.min(passagersFillerRestants, capaciteRestante);
-
-                                    Assignation assignationFiller = new Assignation();
-                                    assignationFiller.setIdReservation(idReservationFiller);
-                                    assignationFiller.setIdVehicule(vehiculeChoisi.getIdVehicule());
-                                    assignationFiller.setIdTrajet(trajet.getIdTrajet());
-                                    assignationFiller.setDateHeureDepart(dateDepartTrajet);
-                                    assignationFiller.setDateHeureRetour(trajet.getDateHeureRetour());
-                                    assignationFiller.setQuantitePassagersAssignes(personnesFillerAEmbarquer);
-                                    assignationFiller.setReservation(reservationFiller);
-                                    assignationFiller.setVehicule(vehiculeChoisi);
-
-                                    assignationRepository.insertAssignation(assignationFiller, connection);
-                                    assignations.add(assignationFiller);
-                                    assignationsParVehicule
-                                            .computeIfAbsent(vehiculeChoisi.getIdVehicule(), key -> new ArrayList<>())
-                                            .add(assignationFiller);
-
-                                    int utilisationMaj = capaciteUtiliseeParVehicule.getOrDefault(
-                                            vehiculeChoisi.getIdVehicule(), 0) + personnesFillerAEmbarquer;
-                                    capaciteUtiliseeParVehicule.put(vehiculeChoisi.getIdVehicule(), utilisationMaj);
-
-                                    int nouveauResteFiller = passagersFillerRestants - personnesFillerAEmbarquer;
-                                    passagersRestantsParReservation.put(idReservationFiller, Math.max(0, nouveauResteFiller));
-                                    if (nouveauResteFiller == 0) {
-                                        reservationsTraitees.add(idReservationFiller);
-                                    }
-
-                                    capaciteRestante -= personnesFillerAEmbarquer;
-                                }
-                            } catch (SQLException sqlEx) {
-                                System.err.println("ERROR: Processing reservation " + reservationCourante.getIdReservation() + ": " + sqlEx.getMessage());
-                                reportsDuGroupe.add(copierReservationAvecReste(reservationCourante, passagersRestants));
-                                dejaReportee = true;
-                                break;
-                            }
-                        }
-
-                        if (passagersRestants > 0 && !dejaReportee) {
-                            reportsDuGroupe.add(copierReservationAvecReste(reservationCourante, passagersRestants));
-                        }
-                    }
-
-                    if (!trajetsDuGroupe.isEmpty()) {
-                        LocalDateTime departOperationnel = resolveDepartOperationnelGroupe(
-                                dateDepartGroupe,
-                                reservationsTraitees,
-                                reservationsParIdDansGroupe,
-                                trajetsDuGroupe
-                        );
-                        if (departOperationnel != null) {
-                            try {
-                                alignerDepartGroupeEtPersister(
-                                        departOperationnel,
-                                        trajetsDuGroupe,
-                                        assignationsParVehicule,
-                                        connection
+                                retirerReservationsSelectionnees(
+                                        reservationsNaturellesRestantes,
+                                        reservationsIntermediaires
                                 );
-                            } catch (SQLException sqlEx) {
-                                System.err.println("WARN: alignerDepartGroupeEtPersister failed for groupe " + (idxGroupe + 1) + ": " + sqlEx.getMessage());
                             }
                         }
                     }
 
-                    if (isLastGroupe) {
-                        reservationsNonAssignees.addAll(reportsDuGroupe);
-                    } else {
-                        reservationsReportees.addAll(reportsDuGroupe);
+                    GroupeTemps groupeNaturelRestant = new GroupeTemps();
+                    groupeNaturelRestant.setHeureDepartGroupe(groupeNaturel.getHeureDepartGroupe());
+                    groupeNaturelRestant.setTempsAttenteMinutes(tempsAttenteMinutes);
+                    groupeNaturelRestant.setReservations(reservationsNaturellesRestantes);
+                    groupesAExecuter.add(groupeNaturelRestant);
+                    vehiculesPrioritaires.add(null);
+
+                    for (int idxSousGroupe = 0; idxSousGroupe < groupesAExecuter.size(); idxSousGroupe++) {
+                        GroupeTemps sousGroupe = groupesAExecuter.get(idxSousGroupe);
+                        Integer idVehiculePrioritaireRetour = vehiculesPrioritaires.get(idxSousGroupe);
+
+                        List<Reservation> reportsDuSousGroupe = processerSousGroupe(
+                                date,
+                                tempsAttenteMinutes,
+                                sousGroupe,
+                                reservationsReportees,
+                                assignations,
+                                trajets,
+                                connection,
+                                idVehiculePrioritaireRetour
+                        );
+
+                        boolean isDernierSousGroupeNaturel = idxSousGroupe == groupesAExecuter.size() - 1;
+                        boolean isDernierGroupeNaturel = idxGroupe == groupes.size() - 1;
+                        boolean terminal = isDernierSousGroupeNaturel && isDernierGroupeNaturel;
+
+                        if (terminal) {
+                            reservationsNonAssignees.addAll(reportsDuSousGroupe);
+                        } else {
+                            reservationsReportees.addAll(reportsDuSousGroupe);
+                        }
                     }
                 }
 
@@ -386,6 +166,399 @@ public class AssignationService {
         AssignationResult result = new AssignationResult(assignations, reservationsNonAssignees, trajets);
         result.setGroupes(groupes);
         return result;
+    }
+
+    private List<Reservation> processerSousGroupe(
+            LocalDate date,
+            int tempsAttenteMinutes,
+            GroupeTemps groupe,
+            List<Reservation> reservationsReportees,
+            List<Assignation> assignations,
+            List<Trajet> trajets,
+            Connection connection,
+            Integer idVehiculePrioritaireRetour) {
+
+        List<Reservation> nonAssigneesPrecedentes = new ArrayList<>(reservationsReportees);
+        List<Reservation> reservationsNouvelles = new ArrayList<>(groupe.getReservations());
+        reservationsReportees.clear();
+
+        java.util.Set<Integer> nonAssigneesPrecedentesIds = new java.util.HashSet<>();
+        for (Reservation reservationNA : nonAssigneesPrecedentes) {
+            if (reservationNA != null && reservationNA.getIdReservation() > 0) {
+                nonAssigneesPrecedentesIds.add(reservationNA.getIdReservation());
+            }
+        }
+
+        nonAssigneesPrecedentes.sort((r1, r2) -> Integer.compare(r2.getNbPassager(), r1.getNbPassager()));
+        reservationsNouvelles.sort((r1, r2) -> Integer.compare(r2.getNbPassager(), r1.getNbPassager()));
+
+        List<Reservation> reservationsATraiter = new ArrayList<>(nonAssigneesPrecedentes);
+        reservationsATraiter.addAll(reservationsNouvelles);
+
+        LocalDateTime dateDepartGroupe = groupe.getHeureDepartGroupe();
+        LocalDateTime finGroupe = dateDepartGroupe.plusMinutes(tempsAttenteMinutes);
+
+        java.util.Map<Integer, Integer> capaciteUtiliseeParVehicule = new java.util.HashMap<>();
+        java.util.Map<Integer, Trajet> trajetParVehicule = new java.util.HashMap<>();
+        java.util.Map<Integer, java.util.LinkedHashSet<Integer>> hotelsParVehicule = new java.util.HashMap<>();
+        java.util.Map<Integer, List<Assignation>> assignationsParVehicule = new java.util.HashMap<>();
+        java.util.Set<Integer> reservationsTraitees = new java.util.HashSet<>();
+        List<Reservation> reportsDuGroupe = new ArrayList<>();
+        List<Trajet> trajetsDuGroupe = new ArrayList<>();
+        boolean prioriteVehiculeRetourConsommee = false;
+
+        java.util.Map<Integer, Reservation> reservationsParIdDansGroupe = new java.util.LinkedHashMap<>();
+        java.util.Map<Integer, Integer> passagersRestantsParReservation = new java.util.HashMap<>();
+        for (Reservation reservation : reservationsATraiter) {
+            if (reservation != null && reservation.getIdReservation() > 0) {
+                reservationsParIdDansGroupe.putIfAbsent(reservation.getIdReservation(), reservation);
+                passagersRestantsParReservation.put(
+                        reservation.getIdReservation(),
+                        Math.max(0, reservation.getNbPassager())
+                );
+            }
+        }
+
+        for (int idxRes = 0; idxRes < reservationsATraiter.size(); idxRes++) {
+            Reservation reservationCourante = reservationsATraiter.get(idxRes);
+
+            if (reservationCourante == null || reservationCourante.getIdReservation() <= 0) {
+                continue;
+            }
+            if (reservationsTraitees.contains(reservationCourante.getIdReservation())) {
+                continue;
+            }
+            if (reservationCourante.getHotel() == null) {
+                System.err.println("WARN: Reservation " + reservationCourante.getIdReservation() + " has no hotel, skipping");
+                continue;
+            }
+
+            int idReservationCourante = reservationCourante.getIdReservation();
+            int passagersRestants = passagersRestantsParReservation.getOrDefault(
+                    idReservationCourante,
+                    Math.max(0, reservationCourante.getNbPassager())
+            );
+            if (passagersRestants <= 0) {
+                reservationsTraitees.add(idReservationCourante);
+                continue;
+            }
+            boolean dejaReportee = false;
+            java.util.Set<Integer> vehiculesExclus = new java.util.HashSet<>();
+
+            while (passagersRestants > 0) {
+                try {
+                    List<Vehicule> candidats = vehiculeRepository.getVehiculesCandidatsPourSplit(
+                            passagersRestants, date, dateDepartGroupe, finGroupe, connection);
+
+                    Vehicule vehiculeChoisi = null;
+                    if (!prioriteVehiculeRetourConsommee && idVehiculePrioritaireRetour != null) {
+                        vehiculeChoisi = extraireVehiculePrioritaireEligible(
+                                candidats,
+                                idVehiculePrioritaireRetour,
+                                capaciteUtiliseeParVehicule,
+                                vehiculesExclus
+                        );
+                        if (vehiculeChoisi != null) {
+                            prioriteVehiculeRetourConsommee = true;
+                        }
+                    }
+
+                    if (vehiculeChoisi == null) {
+                        vehiculeChoisi = selectionnerVehiculePlusProche(
+                                candidats, passagersRestants, capaciteUtiliseeParVehicule, vehiculesExclus);
+                    }
+
+                    if (vehiculeChoisi == null) {
+                        reportsDuGroupe.add(copierReservationAvecReste(reservationCourante, passagersRestants));
+                        dejaReportee = true;
+                        break;
+                    }
+
+                    int capaciteDisponible = getCapaciteDisponible(vehiculeChoisi, capaciteUtiliseeParVehicule);
+                    if (capaciteDisponible <= 0) {
+                        vehiculesExclus.add(vehiculeChoisi.getIdVehicule());
+                        continue;
+                    }
+
+                    Trajet trajet = trajetParVehicule.get(vehiculeChoisi.getIdVehicule());
+                    LocalDateTime dateDepartTrajet = dateDepartGroupe;
+                    if (vehiculeChoisi.getDernierRetour() != null &&
+                            vehiculeChoisi.getDernierRetour().isAfter(dateDepartTrajet)) {
+                        dateDepartTrajet = vehiculeChoisi.getDernierRetour();
+                    }
+
+                    if (vehiculeChoisi.getDernierRetour() != null) {
+                        RetourVehiculeResult retourVehiculeResult = traiterVehiculeRevenu(
+                                vehiculeChoisi,
+                                vehiculeChoisi.getDernierRetour(),
+                                extraireReservationsRestantes(nonAssigneesPrecedentes, passagersRestantsParReservation),
+                                extraireReservationsRestantes(reservationsNouvelles, passagersRestantsParReservation),
+                                tempsAttenteMinutes,
+                                connection
+                        );
+
+                        if (retourVehiculeResult != null
+                                && retourVehiculeResult.getDateDepartEffective() != null
+                                && retourVehiculeResult.getDateDepartEffective().isAfter(dateDepartTrajet)) {
+                            dateDepartTrajet = retourVehiculeResult.getDateDepartEffective();
+                        }
+                    }
+
+                    LocalTime heureDisponibiliteVehicule = vehiculeChoisi.getHeureDisponibilite() != null
+                            ? vehiculeChoisi.getHeureDisponibilite()
+                            : LocalTime.MIDNIGHT;
+                    LocalDateTime disponibiliteDuJour = LocalDateTime.of(date, heureDisponibiliteVehicule);
+                    if (disponibiliteDuJour.isAfter(dateDepartTrajet)) {
+                        dateDepartTrajet = disponibiliteDuJour;
+                    }
+
+                    if (trajet == null) {
+                        List<Integer> hotelsDansVehicule = new ArrayList<>();
+                        if (reservationCourante.getHotel() != null) {
+                            hotelsDansVehicule.add(reservationCourante.getHotel().getIdHotel());
+                        }
+
+                        List<TrajetEtape> etapes = routeService.calculerRoute(hotelsDansVehicule);
+                        DureeResult dureeResult = dureeService.calculerDureeMultiStop(dateDepartTrajet, etapes);
+
+                        if (dureeResult.getDureeMinutes() <= 0) {
+                            vehiculesExclus.add(vehiculeChoisi.getIdVehicule());
+                            continue;
+                        }
+
+                        trajet = new Trajet(0, vehiculeChoisi.getIdVehicule(),
+                                dateDepartTrajet, dureeResult.getDateRetour(), date);
+                        trajet.setVehicule(vehiculeChoisi);
+                        trajet.setEtapes(new ArrayList<>());
+
+                        int idTrajet = trajetRepository.insertTrajet(trajet, connection);
+                        trajet.setIdTrajet(idTrajet);
+
+                        for (TrajetEtape etape : etapes) {
+                            etape.setIdTrajet(idTrajet);
+                            trajetRepository.insertTrajetEtape(etape, connection);
+                            trajet.getEtapes().add(etape);
+                        }
+
+                        trajets.add(trajet);
+                        trajetsDuGroupe.add(trajet);
+                        trajetParVehicule.put(vehiculeChoisi.getIdVehicule(), trajet);
+                        capaciteUtiliseeParVehicule.putIfAbsent(vehiculeChoisi.getIdVehicule(), 0);
+
+                        java.util.LinkedHashSet<Integer> hotelsVehicule = new java.util.LinkedHashSet<>();
+                        if (reservationCourante.getHotel() != null) {
+                            hotelsVehicule.add(reservationCourante.getHotel().getIdHotel());
+                        }
+                        hotelsParVehicule.put(vehiculeChoisi.getIdVehicule(), hotelsVehicule);
+                    }
+
+                    synchronizeTrajetHotelsForReservation(
+                            trajet,
+                            vehiculeChoisi.getIdVehicule(),
+                            reservationCourante,
+                            hotelsParVehicule,
+                            connection,
+                            assignationsParVehicule
+                    );
+
+                    int personnesAEmbarquer = Math.min(passagersRestants, capaciteDisponible);
+
+                    Assignation assignation = new Assignation();
+                    assignation.setIdReservation(reservationCourante.getIdReservation());
+                    assignation.setIdVehicule(vehiculeChoisi.getIdVehicule());
+                    assignation.setIdTrajet(trajet.getIdTrajet());
+                    assignation.setDateHeureDepart(dateDepartTrajet);
+                    assignation.setDateHeureRetour(trajet.getDateHeureRetour());
+                    assignation.setQuantitePassagersAssignes(personnesAEmbarquer);
+                    assignation.setFromNonAssigneePrecedent(
+                        nonAssigneesPrecedentesIds.contains(reservationCourante.getIdReservation())
+                    );
+                    assignation.setDateHeureDepartEffective(dateDepartTrajet);
+                    assignation.setReservation(reservationCourante);
+                    assignation.setVehicule(vehiculeChoisi);
+
+                    assignationRepository.insertAssignation(assignation, connection);
+                    assignations.add(assignation);
+                    assignationsParVehicule
+                            .computeIfAbsent(vehiculeChoisi.getIdVehicule(), key -> new ArrayList<>())
+                            .add(assignation);
+
+                    int nouvelleUtilisation = capaciteUtiliseeParVehicule
+                            .getOrDefault(vehiculeChoisi.getIdVehicule(), 0)
+                            + personnesAEmbarquer;
+                    capaciteUtiliseeParVehicule.put(vehiculeChoisi.getIdVehicule(), nouvelleUtilisation);
+
+                    passagersRestants -= personnesAEmbarquer;
+                    passagersRestantsParReservation.put(idReservationCourante, Math.max(0, passagersRestants));
+
+                    if (passagersRestants == 0) {
+                        reservationsTraitees.add(idReservationCourante);
+                    }
+
+                    int capaciteRestante = getCapaciteDisponible(vehiculeChoisi, capaciteUtiliseeParVehicule);
+                    while (capaciteRestante > 0) {
+                        Reservation reservationFiller = choisirReservationFillerPlusProche(
+                                reservationsATraiter,
+                                idxRes + 1,
+                                reservationsTraitees,
+                                passagersRestantsParReservation,
+                                capaciteRestante
+                        );
+
+                        if (reservationFiller == null) {
+                            break;
+                        }
+
+                        int idReservationFiller = reservationFiller.getIdReservation();
+                        int passagersFillerRestants = passagersRestantsParReservation.getOrDefault(
+                                idReservationFiller,
+                                Math.max(0, reservationFiller.getNbPassager())
+                        );
+
+                        if (passagersFillerRestants <= 0) {
+                            reservationsTraitees.add(idReservationFiller);
+                            continue;
+                        }
+
+                        synchronizeTrajetHotelsForReservation(
+                                trajet,
+                                vehiculeChoisi.getIdVehicule(),
+                                reservationFiller,
+                                hotelsParVehicule,
+                                connection,
+                                assignationsParVehicule
+                        );
+
+                        int personnesFillerAEmbarquer = Math.min(passagersFillerRestants, capaciteRestante);
+
+                        Assignation assignationFiller = new Assignation();
+                        assignationFiller.setIdReservation(idReservationFiller);
+                        assignationFiller.setIdVehicule(vehiculeChoisi.getIdVehicule());
+                        assignationFiller.setIdTrajet(trajet.getIdTrajet());
+                        assignationFiller.setDateHeureDepart(dateDepartTrajet);
+                        assignationFiller.setDateHeureRetour(trajet.getDateHeureRetour());
+                        assignationFiller.setQuantitePassagersAssignes(personnesFillerAEmbarquer);
+                        assignationFiller.setFromNonAssigneePrecedent(
+                                nonAssigneesPrecedentesIds.contains(idReservationFiller)
+                        );
+                        assignationFiller.setDateHeureDepartEffective(dateDepartTrajet);
+                        assignationFiller.setReservation(reservationFiller);
+                        assignationFiller.setVehicule(vehiculeChoisi);
+
+                        assignationRepository.insertAssignation(assignationFiller, connection);
+                        assignations.add(assignationFiller);
+                        assignationsParVehicule
+                                .computeIfAbsent(vehiculeChoisi.getIdVehicule(), key -> new ArrayList<>())
+                                .add(assignationFiller);
+
+                        int utilisationMaj = capaciteUtiliseeParVehicule.getOrDefault(
+                                vehiculeChoisi.getIdVehicule(), 0) + personnesFillerAEmbarquer;
+                        capaciteUtiliseeParVehicule.put(vehiculeChoisi.getIdVehicule(), utilisationMaj);
+
+                        int nouveauResteFiller = passagersFillerRestants - personnesFillerAEmbarquer;
+                        passagersRestantsParReservation.put(idReservationFiller, Math.max(0, nouveauResteFiller));
+                        if (nouveauResteFiller == 0) {
+                            reservationsTraitees.add(idReservationFiller);
+                        }
+
+                        capaciteRestante -= personnesFillerAEmbarquer;
+                    }
+                } catch (SQLException sqlEx) {
+                    System.err.println("ERROR: Processing reservation " + reservationCourante.getIdReservation() + ": " + sqlEx.getMessage());
+                    reportsDuGroupe.add(copierReservationAvecReste(reservationCourante, passagersRestants));
+                    dejaReportee = true;
+                    break;
+                }
+            }
+
+            if (passagersRestants > 0 && !dejaReportee) {
+                reportsDuGroupe.add(copierReservationAvecReste(reservationCourante, passagersRestants));
+            }
+        }
+
+        if (!trajetsDuGroupe.isEmpty()) {
+            LocalDateTime departOperationnel = resolveDepartOperationnelGroupe(
+                    dateDepartGroupe,
+                    reservationsTraitees,
+                    reservationsParIdDansGroupe,
+                    trajetsDuGroupe
+            );
+            if (departOperationnel != null) {
+                try {
+                    alignerDepartGroupeEtPersister(
+                            departOperationnel,
+                            trajetsDuGroupe,
+                            assignationsParVehicule,
+                            connection
+                    );
+                } catch (SQLException sqlEx) {
+                    System.err.println("WARN: alignerDepartGroupeEtPersister failed: " + sqlEx.getMessage());
+                }
+            }
+        }
+
+        return reportsDuGroupe;
+    }
+
+    private Vehicule trouverVehiculeCreateurGroupe(
+            LocalDate date,
+            LocalDateTime debutGap,
+            LocalDateTime finGap,
+            Connection connection) {
+
+        if (date == null || debutGap == null || finGap == null || !debutGap.isBefore(finGap)) {
+            return null;
+        }
+
+        try {
+            List<Vehicule> candidats = vehiculeRepository.getVehiculesCandidatsPourSplit(
+                    1,
+                    date,
+                    debutGap,
+                    finGap,
+                    connection
+            );
+
+            Vehicule meilleur = null;
+            for (Vehicule vehicule : candidats) {
+                if (vehicule == null || vehicule.getDernierRetour() == null) {
+                    continue;
+                }
+                if (vehicule.getDernierRetour().isBefore(debutGap) || vehicule.getDernierRetour().isAfter(finGap)) {
+                    continue;
+                }
+
+                if (meilleur == null
+                        || vehicule.getDernierRetour().isBefore(meilleur.getDernierRetour())
+                        || (vehicule.getDernierRetour().isEqual(meilleur.getDernierRetour())
+                            && vehicule.getNbPlace() > meilleur.getNbPlace())) {
+                    meilleur = vehicule;
+                }
+            }
+
+            return meilleur;
+        } catch (SQLException sqlEx) {
+            System.err.println("WARN: trouverVehiculeCreateurGroupe failed: " + sqlEx.getMessage());
+            return null;
+        }
+    }
+
+    private void retirerReservationsSelectionnees(
+            List<Reservation> source,
+            List<Reservation> selectionnees) {
+
+        if (source == null || source.isEmpty() || selectionnees == null || selectionnees.isEmpty()) {
+            return;
+        }
+
+        java.util.Set<Integer> ids = new java.util.HashSet<>();
+        for (Reservation reservation : selectionnees) {
+            if (reservation != null && reservation.getIdReservation() > 0) {
+                ids.add(reservation.getIdReservation());
+            }
+        }
+
+        source.removeIf(reservation -> reservation != null && ids.contains(reservation.getIdReservation()));
     }
 
 
@@ -497,6 +670,32 @@ public class AssignationService {
         return ties.get(idxRandom);
     }
 
+    private Vehicule extraireVehiculePrioritaireEligible(
+            List<Vehicule> candidats,
+            Integer idVehiculePrioritaire,
+            java.util.Map<Integer, Integer> capaciteParVehicule,
+            java.util.Set<Integer> vehiculesExclus) {
+
+        if (candidats == null || candidats.isEmpty() || idVehiculePrioritaire == null) {
+            return null;
+        }
+
+        for (Vehicule candidat : candidats) {
+            if (candidat == null || candidat.getIdVehicule() != idVehiculePrioritaire) {
+                continue;
+            }
+            if (vehiculesExclus != null && vehiculesExclus.contains(candidat.getIdVehicule())) {
+                return null;
+            }
+            if (getCapaciteDisponible(candidat, capaciteParVehicule) <= 0) {
+                return null;
+            }
+            return candidat;
+        }
+
+        return null;
+    }
+
     private int getCapaciteDisponible(Vehicule vehicule, java.util.Map<Integer, Integer> capaciteParVehicule) {
         return vehicule.getNbPlace() - capaciteParVehicule.getOrDefault(vehicule.getIdVehicule(), 0);
     }
@@ -542,8 +741,7 @@ public class AssignationService {
                 if (reservation == null || reservation.getDateHeureArrive() == null) {
                     continue;
                 }
-                if (!reservation.getDateHeureArrive().isBefore(heureRetourVehicule)
-                        && !reservation.getDateHeureArrive().isAfter(finFenetre)) {
+                if (!reservation.getDateHeureArrive().isAfter(finFenetre)) {
                     reservationsDansFenetre.add(reservation);
                 }
             }
@@ -568,6 +766,9 @@ public class AssignationService {
             cumulNouveaux += Math.max(0, reservation.getNbPassager());
             if (cumulNouveaux >= placesRestantes) {
                 instantRemplissage = reservation.getDateHeureArrive();
+                if (instantRemplissage != null && instantRemplissage.isBefore(heureRetourVehicule)) {
+                    instantRemplissage = heureRetourVehicule;
+                }
                 break;
             }
         }
@@ -733,6 +934,7 @@ public class AssignationService {
                 if (assignation != null && assignation.getIdTrajet() != null && assignation.getIdTrajet() == trajet.getIdTrajet()) {
                     assignation.setDateHeureDepart(trajet.getDateHeureDepart());
                     assignation.setDateHeureRetour(trajet.getDateHeureRetour());
+                    assignation.setDateHeureDepartEffective(trajet.getDateHeureDepart());
                 }
             }
         }
@@ -820,6 +1022,7 @@ public class AssignationService {
                     if (assignation != null && assignation.getIdTrajet() != null && assignation.getIdTrajet() == trajet.getIdTrajet()) {
                         assignation.setDateHeureDepart(nouveauDepart);
                         assignation.setDateHeureRetour(nouveauRetour);
+                        assignation.setDateHeureDepartEffective(nouveauDepart);
                     }
                 }
             }
@@ -865,11 +1068,14 @@ public class AssignationService {
             schemaName = "dev";
         }
         
-        String sql = "UPDATE " + schemaName + ".Assignation SET date_heure_depart = ?, date_heure_retour = ? WHERE Id_Trajet = ?";
+        String sql = "UPDATE " + schemaName + ".Assignation " +
+                "SET date_heure_depart = ?, date_heure_retour = ?, dateheuredeparteffective = ? " +
+                "WHERE Id_Trajet = ?";
         try (java.sql.PreparedStatement statement = connection.prepareStatement(sql)) {
             statement.setTimestamp(1, java.sql.Timestamp.valueOf(depart));
             statement.setTimestamp(2, java.sql.Timestamp.valueOf(retour));
-            statement.setInt(3, idTrajet);
+            statement.setTimestamp(3, java.sql.Timestamp.valueOf(depart));
+            statement.setInt(4, idTrajet);
             statement.executeUpdate();
         }
     }

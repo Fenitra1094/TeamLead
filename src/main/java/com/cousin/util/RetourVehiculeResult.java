@@ -2,17 +2,6 @@ package com.cousin.util;
 
 import java.time.LocalDateTime;
 
-/**
- * DTO contenant le résultat du traitement d'un véhicule à son retour.
- * Utilisé par AssignationService lors du traitement des fenêtres d'attente.
- * 
- * Attributs :
- * - modeDepart : "IMMEDIAT" ou "ATTENTE"
- * - dateDepartEffective : heure réelle de départ du véhicule
- * - fenetreDebut/fenetreFin : limites chronologiques de la fenêtre d'attente
- * - totalEmbarques* : passagers embarqués (précédents vs nouveaux)
- * - totalRestants* : passagers non assignables (précédents vs nouveaux)
- */
 public class RetourVehiculeResult {
     private String modeDepart;
     private LocalDateTime dateDepartEffective;
@@ -23,14 +12,10 @@ public class RetourVehiculeResult {
     private int totalRestantsPrecedents;
     private int totalRestantsNouveaux;
 
-    public RetourVehiculeResult() {
-    }
-
     public static RetourVehiculeResult empty() {
         return new RetourVehiculeResult();
     }
 
-    // Getters & Setters (optimisés)
     public String getModeDepart() {
         return modeDepart;
     }
