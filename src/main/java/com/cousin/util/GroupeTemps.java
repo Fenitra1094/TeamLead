@@ -10,6 +10,9 @@ public class GroupeTemps {
     private LocalDateTime heureDepartGroupe;
     private int tempsAttenteMinutes;
     private List<Reservation> reservations;
+    private boolean groupeCreeParRetourVehicule;
+    private Integer idVehiculePivot;
+    private String referenceVehiculePivot;
 
     public GroupeTemps() {
         this.reservations = new ArrayList<>();
@@ -43,5 +46,29 @@ public class GroupeTemps {
 
     public void setReservations(List<Reservation> reservations) {
         this.reservations = reservations;
+    }
+
+    public boolean isGroupeCreeParRetourVehicule() {
+        return groupeCreeParRetourVehicule;
+    }
+
+    public void setGroupeCreeParRetourVehicule(boolean groupeCreeParRetourVehicule) {
+        this.groupeCreeParRetourVehicule = groupeCreeParRetourVehicule;
+    }
+
+    public Integer getIdVehiculePivot() {
+        return idVehiculePivot;
+    }
+
+    public void setIdVehiculePivot(Integer idVehiculePivot) {
+        this.idVehiculePivot = idVehiculePivot;
+    }
+
+    public String getReferenceVehiculePivot() {
+        return referenceVehiculePivot;
+    }
+
+    public void setReferenceVehiculePivot(String referenceVehiculePivot) {
+        this.referenceVehiculePivot = referenceVehiculePivot;
     }
 }

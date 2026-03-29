@@ -1,9 +1,5 @@
 package com.cousin.service;
 
-import com.cousin.model.Reservation;
-import com.cousin.util.FenetreRetourVehicule;
-import com.cousin.util.GroupeTemps;
-import com.cousin.util.GroupeVol;
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
@@ -13,6 +9,11 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
+
+import com.cousin.model.Reservation;
+import com.cousin.util.GroupeTemps;
+import com.cousin.util.GroupeVol;
 
 public class GroupingService {
 
@@ -48,12 +49,9 @@ public class GroupingService {
             return groupes;
         }
 
-        List<Reservation> triees = new ArrayList<>();
-        for (Reservation reservation : reservations) {
-            if (reservation != null && reservation.getDateHeureArrive() != null) {
-                triees.add(reservation);
-            }
-        }
+        List<Reservation> triees = reservations.stream()
+                .filter(reservation -> reservation != null && reservation.getDateHeureArrive() != null)
+                .collect(Collectors.toList());
 
         if (triees.isEmpty()) {
             return groupes;
@@ -64,8 +62,7 @@ public class GroupingService {
         Set<Integer> traites = new HashSet<>();
         for (int i = 0; i < triees.size(); i++) {
             Reservation pivot = triees.get(i);
-            int idPivot = pivot.getIdReservation();
-            if (traites.contains(idPivot)) {
+            if (traites.contains(pivot.getIdReservation())) {
                 continue;
             }
 
@@ -75,19 +72,18 @@ public class GroupingService {
 
             List<Reservation> reservationsGroupe = new ArrayList<>();
             reservationsGroupe.add(pivot);
-            traites.add(idPivot);
+            traites.add(pivot.getIdReservation());
 
             for (int j = i + 1; j < triees.size(); j++) {
                 Reservation candidate = triees.get(j);
-                int idCandidate = candidate.getIdReservation();
-                if (traites.contains(idCandidate)) {
+                if (traites.contains(candidate.getIdReservation())) {
                     continue;
                 }
 
                 LocalDateTime heureCandidate = candidate.getDateHeureArrive();
                 if (!heureCandidate.isAfter(fenetreFin)) {
                     reservationsGroupe.add(candidate);
-                    traites.add(idCandidate);
+                    traites.add(candidate.getIdReservation());
                     if (heureCandidate.isAfter(maxHeureGroupe)) {
                         maxHeureGroupe = heureCandidate;
                     }

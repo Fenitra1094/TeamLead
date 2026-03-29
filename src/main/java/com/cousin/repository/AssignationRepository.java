@@ -20,9 +20,8 @@ public class AssignationRepository {
      * Sprint 7 : Supporte quantitePassagersAssignes pour les assignations partielles.
      */
     public void insertAssignation(Assignation assignation, Connection connection) throws SQLException {
-        String sql = "INSERT INTO Assignation(Id_Reservation, Id_Vehicule, date_heure_depart, date_heure_retour, Id_Trajet, " +
-                     "quantitePassagersAssignes, fromnonassigneeprecedent, dateheuredeparteffective) " +
-                     "VALUES (?, ?, ?, ?, ?, ?, ?, ?)";
+        String sql = "INSERT INTO Assignation(Id_Reservation, Id_Vehicule, date_heure_depart, date_heure_retour, Id_Trajet, quantitePassagersAssignes, fromNonAssigneePrecedent) " +
+                     "VALUES (?, ?, ?, ?, ?, ?, ?)";
 
         try (PreparedStatement statement = connection.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
             statement.setInt(1, assignation.getIdReservation());
@@ -38,11 +37,7 @@ public class AssignationRepository {
            
             // Sprint 7 : Quantité de passagers assignés (support des splits)
             statement.setInt(6, assignation.getQuantitePassagersAssignes());
-                statement.setBoolean(7, assignation.isFromNonAssigneePrecedent());
-                LocalDateTime departEffectif = assignation.getDateHeureDepartEffective() != null
-                    ? assignation.getDateHeureDepartEffective()
-                    : assignation.getDateHeureDepart();
-                statement.setTimestamp(8, Timestamp.valueOf(departEffectif));
+            statement.setBoolean(7, assignation.isFromNonAssigneePrecedent());
 
             statement.executeUpdate();
 
@@ -79,8 +74,7 @@ public class AssignationRepository {
         String sql = "SELECT Id_Assignation, Id_Reservation, Id_Vehicule, Id_Trajet, " +
                     "       date_heure_depart, date_heure_retour, " +
                     "       COALESCE(quantitePassagersAssignes, 0) AS quantitePassagersAssignes, " +
-                    "       COALESCE(fromnonassigneeprecedent, false) AS fromnonassigneeprecedent, " +
-                    "       dateheuredeparteffective " +
+                    "       COALESCE(fromNonAssigneePrecedent, false) AS fromNonAssigneePrecedent " +
                     "FROM Assignation " +
                     "WHERE Id_Assignation = ?";
 
@@ -103,8 +97,7 @@ public class AssignationRepository {
         String sql = "SELECT Id_Assignation, Id_Reservation, Id_Vehicule, Id_Trajet, " +
                     "       date_heure_depart, date_heure_retour, " +
                     "       COALESCE(quantitePassagersAssignes, 0) AS quantitePassagersAssignes, " +
-                    "       COALESCE(fromnonassigneeprecedent, false) AS fromnonassigneeprecedent, " +
-                    "       dateheuredeparteffective " +
+                    "       COALESCE(fromNonAssigneePrecedent, false) AS fromNonAssigneePrecedent " +
                     "FROM Assignation " +
                     "WHERE DATE(date_heure_depart) = ? " +
                     "ORDER BY Id_Assignation";
@@ -145,11 +138,7 @@ public class AssignationRepository {
         
         // Sprint 7 : Charger la quantité de passagers assignés
         assignation.setQuantitePassagersAssignes(resultSet.getInt("quantitePassagersAssignes"));
-        assignation.setFromNonAssigneePrecedent(resultSet.getBoolean("fromnonassigneeprecedent"));
-        Timestamp departEffectif = resultSet.getTimestamp("dateheuredeparteffective");
-        assignation.setDateHeureDepartEffective(
-            departEffectif != null ? departEffectif.toLocalDateTime() : assignation.getDateHeureDepart()
-        );
+        assignation.setFromNonAssigneePrecedent(resultSet.getBoolean("fromNonAssigneePrecedent"));
 
         return assignation;
     }

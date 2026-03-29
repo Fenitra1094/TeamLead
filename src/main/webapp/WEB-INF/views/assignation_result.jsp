@@ -47,6 +47,37 @@
         return value.truncatedTo(ChronoUnit.MINUTES);
     }
 
+    private LocalDateTime resolveDebutGroupeAffichage(GroupeTemps groupe, List<Reservation> reservationsGroupe) {
+        if (groupe == null) {
+            return null;
+        }
+
+        // Groupe pivot Sprint 8: le debut est l'heure de retour du vehicule pivot.
+        if (groupe.isGroupeCreeParRetourVehicule()) {
+            return toMinute(groupe.getHeureDepartGroupe());
+        }
+
+        // Groupe naturel: le debut est la premiere arrivee du groupe.
+        LocalDateTime minArrivee = null;
+        if (reservationsGroupe != null) {
+            for (Reservation reservation : reservationsGroupe) {
+                if (reservation == null || reservation.getDateHeureArrive() == null) {
+                    continue;
+                }
+                LocalDateTime arrivee = toMinute(reservation.getDateHeureArrive());
+                if (minArrivee == null || (arrivee != null && arrivee.isBefore(minArrivee))) {
+                    minArrivee = arrivee;
+                }
+            }
+        }
+
+        if (minArrivee != null) {
+            return minArrivee;
+        }
+
+        return toMinute(groupe.getHeureDepartGroupe());
+    }
+
     private boolean isInInterval(LocalDateTime value, LocalDateTime start, LocalDateTime end) {
         if (value == null || start == null || end == null) {
             return false;
@@ -686,11 +717,14 @@
                    GroupeTemps groupe = groupes.get(i);
                    int numeroGroupe = i + 1;
                    boolean dernierGroupe = (i == groupes.size() - 1);
+                   boolean groupeCreeParRetourVehicule = groupe != null && groupe.isGroupeCreeParRetourVehicule();
+                   Integer idVehiculePivot = groupe != null ? groupe.getIdVehiculePivot() : null;
+                   String referenceVehiculePivot = groupe != null ? groupe.getReferenceVehiculePivot() : null;
                    List<Reservation> reservationsGroupe = groupe != null && groupe.getReservations() != null
                        ? groupe.getReservations()
                        : new ArrayList<Reservation>();
 
-                   LocalDateTime debutIntervalle = groupe != null ? toMinute(groupe.getHeureDepartGroupe()) : null;
+                   LocalDateTime debutIntervalle = resolveDebutGroupeAffichage(groupe, reservationsGroupe);
                    int attenteMinutes = groupe != null ? groupe.getTempsAttenteMinutes() : 0;
                    LocalDateTime finIntervalle = debutIntervalle != null ? debutIntervalle.plusMinutes(attenteMinutes) : null;
 
@@ -810,7 +844,17 @@
                    int nbNonAssignees = Math.max(0, nbReservations - nbAssignees);
         %>
             <div class="card">
-                <h3>Groupe #<%= numeroGroupe %> @ <%= safe(heureDepartOperationnelle) %></h3>
+                <h3>Groupe #<%= numeroGroupe %> @ <%= safe(debutIntervalle) %></h3>
+                <% if (groupeCreeParRetourVehicule) { %>
+                    <div class="alert warning">
+                        Groupe cree par retour vehicule
+                        <% if (referenceVehiculePivot != null && !referenceVehiculePivot.isBlank()) { %>
+                            : <strong><%= safe(referenceVehiculePivot) %></strong>
+                        <% } else if (idVehiculePivot != null && idVehiculePivot > 0) { %>
+                            : <strong>V<%= idVehiculePivot %></strong>
+                        <% } %>
+                    </div>
+                <% } %>
                 <p class="meta-line">
                     Intervalle: <%= safe(debutIntervalle) %> -> <%= safe(finIntervalle) %>
                     | Depart operationnel: <%= safe(heureDepartOperationnelle) %>

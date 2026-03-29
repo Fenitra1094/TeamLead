@@ -11,7 +11,6 @@ public class Assignation {
     private LocalDateTime dateHeureRetour;
     private int quantitePassagersAssignes;  // Sprint 7: support des assignations partielles
     private boolean fromNonAssigneePrecedent;
-    private LocalDateTime dateHeureDepartEffective;
 
     // Objets liés pour l'affichage
     private Reservation reservation;
@@ -30,7 +29,6 @@ public class Assignation {
         this.dateHeureRetour = dateHeureRetour;
         this.quantitePassagersAssignes = 0;
         this.fromNonAssigneePrecedent = false;
-        this.dateHeureDepartEffective = dateHeureDepart;
     }
 
     public int getIdAssignation() {
@@ -111,13 +109,5 @@ public class Assignation {
 
     public void setFromNonAssigneePrecedent(boolean fromNonAssigneePrecedent) {
         this.fromNonAssigneePrecedent = fromNonAssigneePrecedent;
-    }
-
-    public LocalDateTime getDateHeureDepartEffective() {
-        return dateHeureDepartEffective;
-    }
-
-    public void setDateHeureDepartEffective(LocalDateTime dateHeureDepartEffective) {
-        this.dateHeureDepartEffective = dateHeureDepartEffective;
     }
 }
