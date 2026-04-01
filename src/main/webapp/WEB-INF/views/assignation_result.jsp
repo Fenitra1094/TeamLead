@@ -12,6 +12,7 @@
 <%@ page import="java.time.Duration" %>
 <%@ page import="java.lang.reflect.Method" %>
 <%@ page import="java.time.LocalDateTime" %>
+<%@ page import="java.time.LocalTime" %>
 <%@ page import="java.time.temporal.ChronoUnit" %>
 <%@ page import="com.cousin.model.Assignation" %>
 <%@ page import="com.cousin.model.Reservation" %>
@@ -78,9 +79,12 @@
         return toMinute(groupe.getHeureDepartGroupe());
     }
 
-    private boolean isInInterval(LocalDateTime value, LocalDateTime start, LocalDateTime end) {
+    private boolean isInInterval(LocalDateTime value, LocalDateTime start, LocalDateTime end, boolean includeEnd) {
         if (value == null || start == null || end == null) {
             return false;
+        }
+        if (includeEnd) {
+            return !value.isBefore(start) && !value.isAfter(end);
         }
         return !value.isBefore(start) && value.isBefore(end);
     }
@@ -306,8 +310,15 @@
     }
 
     // Sprint 8 UI: priorisation non assignes precedents + fenetre retour vehicule.
-    LocalDateTime heureRetourVehiculeUi = toMinute(asLocalDateTime(heureRetourVehiculeAttr));
-    LocalDateTime dateHeureDepartEffectiveUi = toMinute(asLocalDateTime(dateHeureDepartEffectiveAttr));
+    LocalDateTime heureRetourVehiculeUi = null;
+    if (!(heureRetourVehiculeAttr instanceof Map<?, ?>)) {
+        heureRetourVehiculeUi = toMinute(asLocalDateTime(heureRetourVehiculeAttr));
+    }
+
+    LocalDateTime dateHeureDepartEffectiveUi = null;
+    if (!(dateHeureDepartEffectiveAttr instanceof Map<?, ?>)) {
+        dateHeureDepartEffectiveUi = toMinute(asLocalDateTime(dateHeureDepartEffectiveAttr));
+    }
 
     if (dateHeureDepartEffectiveUi == null) {
         for (Assignation a : assignations) {
@@ -336,7 +347,10 @@
         }
     }
 
-    String modeDepartUi = modeDepartAttr != null ? String.valueOf(modeDepartAttr) : null;
+    String modeDepartUi = null;
+    if (modeDepartAttr instanceof String) {
+        modeDepartUi = String.valueOf(modeDepartAttr);
+    }
     if (modeDepartUi == null || modeDepartUi.trim().isEmpty()) {
         if (heureRetourVehiculeUi != null && dateHeureDepartEffectiveUi != null
                 && !dateHeureDepartEffectiveUi.isAfter(heureRetourVehiculeUi)) {
@@ -418,16 +432,40 @@
 
     <section class="card">
         <h2>Sprint 8 : Priorite non assignees precedents</h2>
-        <p class="meta-line">
-            Heure retour vehicule : <%= safe(heureRetourVehiculeUi) %>
-            | Mode depart : <%= safe(modeDepartUi) %>
-            | Date/heure depart effective : <%= safe(dateHeureDepartEffectiveUi) %>
-        </p>
-        <p class="meta-line">
-            Fenetre attente retour vehicule : <%= safe(fenetreDebutUi) %> -> <%= safe(fenetreFinUi) %>
-        </p>
+        <h3 style="margin-top:10px;">1) Synthese execution Sprint 8</h3>
+        <table>
+            <thead>
+            <tr>
+                <th>Heure retour vehicule</th>
+                <th>Fenetre attente (debut)</th>
+                <th>Fenetre attente (fin)</th>
+                <th>Mode depart</th>
+                <th>Date/heure depart effectif</th>
+                <th>Reservations restantes</th>
+                <th>Passagers restants</th>
+            </tr>
+            </thead>
+            <tbody>
+            <tr>
+                <td><%= safe(heureRetourVehiculeUi) %></td>
+                <td><%= safe(fenetreDebutUi) %></td>
+                <td><%= safe(fenetreFinUi) %></td>
+                <td>
+                    <strong><%= safe(modeDepartUi) %></strong>
+                    <% if ("IMMEDIAT".equalsIgnoreCase(modeDepartUi)) { %>
+                        <div class="meta-line">Depart immediat</div>
+                    <% } else if ("ATTENTE".equalsIgnoreCase(modeDepartUi)) { %>
+                        <div class="meta-line">Depart en attente / fin de fenetre</div>
+                    <% } %>
+                </td>
+                <td><strong><%= safe(dateHeureDepartEffectiveUi) %></strong></td>
+                <td><strong><%= nonAssignees.size() %></strong></td>
+                <td><strong><%= totalRestantsNonAssignesUi %></strong></td>
+            </tr>
+            </tbody>
+        </table>
 
-        <h3 style="margin-top:10px;">1) Priorite non assignees precedents (liste embarquee)</h3>
+        <h3 style="margin-top:10px;">2) Priorite non assignees precedents (liste embarquee)</h3>
         <% if (prioriteNonAssigneeParReservation.isEmpty()) { %>
             <div class="alert warning">Aucun embarquement prioritaire detecte pour cette execution.</div>
         <% } else { %>
@@ -457,28 +495,37 @@
             </table>
         <% } %>
 
-        <h3 style="margin-top:10px;">2) Fenetre attente retour vehicule (debut/fin)</h3>
-        <p>
-            Debut : <strong><%= safe(fenetreDebutUi) %></strong>
-            | Fin : <strong><%= safe(fenetreFinUi) %></strong>
-        </p>
-
-        <h3 style="margin-top:10px;">3) Depart effectif</h3>
-        <p>
-            Mode : <strong><%= safe(modeDepartUi) %></strong>
-            | Depart effectif : <strong><%= safe(dateHeureDepartEffectiveUi) %></strong>
-            <% if ("IMMEDIAT".equalsIgnoreCase(modeDepartUi)) { %>
-                <span class="meta-line">(depart immediat)</span>
-            <% } else if ("ATTENTE".equalsIgnoreCase(modeDepartUi)) { %>
-                <span class="meta-line">(depart en fin de fenetre ou vehicule plein)</span>
-            <% } %>
-        </p>
-
-        <h3 style="margin-top:10px;">4) Restants non assignes apres traitement</h3>
-        <p>
-            Reservations restantes : <strong><%= nonAssignees.size() %></strong>
-            | Passagers restants : <strong><%= totalRestantsNonAssignesUi %></strong>
-        </p>
+        <h3 style="margin-top:10px;">3) Restants non assignes apres traitement (detail)</h3>
+        <% if (nonAssignees.isEmpty()) { %>
+            <div class="alert success">Aucun restant non assigne apres traitement.</div>
+        <% } else { %>
+            <table>
+                <thead>
+                <tr>
+                    <th>Reservation</th>
+                    <th>Client</th>
+                    <th>Hotel</th>
+                    <th>Passagers restants</th>
+                    <th>Arrivee</th>
+                </tr>
+                </thead>
+                <tbody>
+                <% for (Reservation r : nonAssignees) {
+                       if (r == null) {
+                           continue;
+                       }
+                %>
+                    <tr>
+                        <td>R<%= r.getIdReservation() %></td>
+                        <td><%= safe(r.getIdClient()) %></td>
+                        <td><%= (r.getHotel() != null) ? safe(r.getHotel().getNom()) : "-" %></td>
+                        <td><%= Math.max(0, r.getNbPassager()) %></td>
+                        <td><%= safe(r.getDateHeureArrive()) %></td>
+                    </tr>
+                <% } %>
+                </tbody>
+            </table>
+        <% } %>
 
         <% if (detailsPriorisationAttr != null) { %>
             <p class="meta-line">Details priorisation (controller) : <%= safe(detailsPriorisationAttr) %></p>
@@ -670,7 +717,12 @@
                        }
 
                        LocalDateTime dateTraitement = toMinute(assignation.getDateHeureDepart());
-                       boolean traiteDansCeGroupe = isInInterval(dateTraitement, debutIntervalle, finIntervalle);
+                           boolean traiteDansCeGroupe = isInInterval(
+                               dateTraitement,
+                               debutIntervalle,
+                               finIntervalle,
+                               groupeCreeParRetourVehicule
+                           );
                        if (!traiteDansCeGroupe) {
                            continue;
                        }
@@ -752,12 +804,280 @@
                 <h3>Groupe #<%= numeroGroupe %> @ <%= safe(debutIntervalle) %></h3>
                 <% if (groupeCreeParRetourVehicule) { %>
                     <div class="alert warning">
+                        <strong>Vehicules de retour detectes dans la fenetre :</strong>
+                        <table style="margin-top:8px;">
+                            <thead>
+                            <tr>
+                                <th>Vehicule</th>
+                                <th>Capacite</th>
+                                <th>Type</th>
+                                <th>Heure retour</th>
+                            </tr>
+                            </thead>
+                            <tbody>
+                            <% java.util.Map<Integer, Object[]> vehiculesRetourFenetre = new java.util.LinkedHashMap<Integer, Object[]>();
+                               for (Trajet trajetRetour : trajets) {
+                                   if (trajetRetour == null || trajetRetour.getDateHeureRetour() == null) {
+                                       continue;
+                                   }
+                                   int idVehiculeRetour = trajetRetour.getIdVehicule();
+                                   Vehicule vehiculeRetour = trajetRetour.getVehicule();
+                                   if (idVehiculeRetour <= 0 && vehiculeRetour != null) {
+                                       idVehiculeRetour = vehiculeRetour.getIdVehicule();
+                                   }
+                                   if (idVehiculeRetour <= 0) {
+                                       continue;
+                                   }
+
+                                   LocalDateTime retourVehicule = toMinute(trajetRetour.getDateHeureRetour());
+                                   boolean dansFenetre = (debutIntervalle != null && finIntervalle != null)
+                                           && !retourVehicule.isBefore(debutIntervalle)
+                                           && !retourVehicule.isAfter(finIntervalle);
+                                   if (!dansFenetre) {
+                                       continue;
+                                   }
+
+                                   if (!vehiculesRetourFenetre.containsKey(idVehiculeRetour)) {
+                                       String refVehicule = vehiculeRetour != null && vehiculeRetour.getReference() != null
+                                               ? vehiculeRetour.getReference()
+                                               : "V" + idVehiculeRetour;
+                                       int capaciteVehicule = vehiculeRetour != null ? vehiculeRetour.getNbPlace() : 0;
+                                       String typeVehicule = vehiculeRetour != null ? safe(vehiculeRetour.getTypeVehicule()) : "-";
+                                       vehiculesRetourFenetre.put(idVehiculeRetour, new Object[] {refVehicule, capaciteVehicule, typeVehicule, retourVehicule});
+                                   }
+                               }
+
+                               List<Object[]> vehiculesRetourTries = new ArrayList<>(vehiculesRetourFenetre.values());
+                               vehiculesRetourTries.sort((r1, r2) -> {
+                                   String ref1 = r1 != null && r1.length > 0 && r1[0] != null ? String.valueOf(r1[0]) : "";
+                                   String ref2 = r2 != null && r2.length > 0 && r2[0] != null ? String.valueOf(r2[0]) : "";
+                                   return ref1.compareToIgnoreCase(ref2);
+                               });
+
+                               for (Object[] row : vehiculesRetourTries) {
+                            %>
+                                <tr>
+                                    <td><%= safe(row[0]) %></td>
+                                    <td><%= safe(row[1]) %></td>
+                                    <td><%= safe(row[2]) %></td>
+                                    <td><%= safe(row[3]) %></td>
+                                </tr>
+                            <% } %>
+                            </tbody>
+                        </table>
+
+                        <strong style="display:block; margin-top:10px;">Vehicules candidats dans l'intervalle :</strong>
+                        <table style="margin-top:8px;">
+                            <thead>
+                            <tr>
+                                <th>Vehicule</th>
+                                <th>Capacite</th>
+                                <th>Type</th>
+                                <th>Heure dispo effective</th>
+                                <th>Origine candidature</th>
+                                <th>Utilise dans ce groupe</th>
+                            </tr>
+                            </thead>
+                            <tbody>
+                            <%
+                               java.util.List<Assignation> assignationsDansIntervalle = new java.util.ArrayList<Assignation>();
+                               for (Assignation assignationIntervalle : assignations) {
+                                   if (assignationIntervalle == null || assignationIntervalle.getDateHeureDepart() == null) {
+                                       continue;
+                                   }
+                                   LocalDateTime departIntervalle = toMinute(assignationIntervalle.getDateHeureDepart());
+                                   boolean dansIntervalleAssignation = isInInterval(
+                                           departIntervalle,
+                                           debutIntervalle,
+                                           finIntervalle,
+                                           groupeCreeParRetourVehicule
+                                   );
+                                   if (!dansIntervalleAssignation) {
+                                       continue;
+                                   }
+                                   assignationsDansIntervalle.add(assignationIntervalle);
+                               }
+
+                               java.util.Set<Integer> vehiculesUtilisesDansGroupe = new java.util.HashSet<Integer>();
+                               for (Assignation assignationCand : assignationsDansIntervalle) {
+                                   if (assignationCand == null || assignationCand.getIdVehicule() <= 0) {
+                                       continue;
+                                   }
+                                   vehiculesUtilisesDansGroupe.add(assignationCand.getIdVehicule());
+                               }
+
+                               java.util.Map<Integer, Vehicule> tousVehiculesParId = new java.util.LinkedHashMap<Integer, Vehicule>();
+                               for (Vehicule v : vehiculesUtilises) {
+                                   if (v != null && v.getIdVehicule() > 0) {
+                                       tousVehiculesParId.putIfAbsent(v.getIdVehicule(), v);
+                                   }
+                               }
+                               for (Vehicule v : vehiculesNonUtilises) {
+                                   if (v != null && v.getIdVehicule() > 0) {
+                                       tousVehiculesParId.putIfAbsent(v.getIdVehicule(), v);
+                                   }
+                               }
+                               for (Assignation assignationCand : assignationsDansIntervalle) {
+                                   if (assignationCand == null) {
+                                       continue;
+                                   }
+                                   if (assignationCand.getIdVehicule() > 0 && !tousVehiculesParId.containsKey(assignationCand.getIdVehicule())) {
+                                       Vehicule vehiculeAssignePlaceholder = new Vehicule();
+                                       vehiculeAssignePlaceholder.setIdVehicule(assignationCand.getIdVehicule());
+                                       vehiculeAssignePlaceholder.setReference("V" + assignationCand.getIdVehicule());
+                                       tousVehiculesParId.put(assignationCand.getIdVehicule(), vehiculeAssignePlaceholder);
+                                   }
+                                   Vehicule vehiculeAssigne = assignationCand.getVehicule();
+                                   if (vehiculeAssigne != null && vehiculeAssigne.getIdVehicule() > 0) {
+                                       tousVehiculesParId.putIfAbsent(vehiculeAssigne.getIdVehicule(), vehiculeAssigne);
+                                   }
+                               }
+                               for (Trajet trajetCand : trajets) {
+                                   if (trajetCand == null) {
+                                       continue;
+                                   }
+                                   Vehicule vehiculeTrajet = trajetCand.getVehicule();
+                                   if (vehiculeTrajet != null && vehiculeTrajet.getIdVehicule() > 0) {
+                                       tousVehiculesParId.putIfAbsent(vehiculeTrajet.getIdVehicule(), vehiculeTrajet);
+                                   }
+                               }
+                               if (idVehiculePivot != null && idVehiculePivot > 0
+                                       && !tousVehiculesParId.containsKey(idVehiculePivot)) {
+                                   Vehicule pivotPlaceholder = new Vehicule();
+                                   pivotPlaceholder.setIdVehicule(idVehiculePivot);
+                                   pivotPlaceholder.setReference(
+                                           referenceVehiculePivot != null && !referenceVehiculePivot.isBlank()
+                                                   ? referenceVehiculePivot
+                                                   : ("V" + idVehiculePivot)
+                                   );
+                                   tousVehiculesParId.put(idVehiculePivot, pivotPlaceholder);
+                               }
+
+                               java.util.Map<Integer, LocalDateTime> dernierRetourParVehiculeAff = new java.util.HashMap<Integer, LocalDateTime>();
+                               java.util.Map<Integer, LocalDateTime> departAssigneParVehiculeAff = new java.util.HashMap<Integer, LocalDateTime>();
+                               for (Trajet trajetRetour : trajets) {
+                                   if (trajetRetour == null || trajetRetour.getDateHeureRetour() == null) {
+                                       continue;
+                                   }
+                                   int idVeh = trajetRetour.getIdVehicule();
+                                   if (idVeh <= 0 && trajetRetour.getVehicule() != null) {
+                                       idVeh = trajetRetour.getVehicule().getIdVehicule();
+                                   }
+                                   if (idVeh <= 0) {
+                                       continue;
+                                   }
+
+                                   LocalDateTime retour = toMinute(trajetRetour.getDateHeureRetour());
+                                   if (finIntervalle != null && retour != null && retour.isAfter(finIntervalle)) {
+                                       // Ne pas utiliser un retour futur au groupe courant pour evaluer
+                                       // la candidature dans cet intervalle.
+                                       continue;
+                                   }
+                                   LocalDateTime existant = dernierRetourParVehiculeAff.get(idVeh);
+                                   if (existant == null || retour.isAfter(existant)) {
+                                       dernierRetourParVehiculeAff.put(idVeh, retour);
+                                   }
+                               }
+                               for (Assignation assignationCand : assignationsDansIntervalle) {
+                                   if (assignationCand == null || assignationCand.getIdVehicule() <= 0
+                                           || assignationCand.getDateHeureDepart() == null) {
+                                       continue;
+                                   }
+                                   LocalDateTime depart = toMinute(assignationCand.getDateHeureDepart());
+                                   if (finIntervalle != null && depart != null && depart.isAfter(finIntervalle)) {
+                                       continue;
+                                   }
+                                   LocalDateTime existant = departAssigneParVehiculeAff.get(assignationCand.getIdVehicule());
+                                   if (depart != null && (existant == null || depart.isBefore(existant))) {
+                                       departAssigneParVehiculeAff.put(assignationCand.getIdVehicule(), depart);
+                                   }
+                               }
+
+                               List<Object[]> candidatsFenetre = new ArrayList<Object[]>();
+                               for (Vehicule vehiculeCand : tousVehiculesParId.values()) {
+                                   if (vehiculeCand == null || vehiculeCand.getIdVehicule() <= 0) {
+                                       continue;
+                                   }
+
+                                   LocalTime heureDispo = vehiculeCand.getHeureDisponibilite() != null
+                                           ? vehiculeCand.getHeureDisponibilite()
+                                           : LocalTime.MIDNIGHT;
+                                   LocalDateTime dispoDuJour = debutIntervalle != null
+                                           ? LocalDateTime.of(debutIntervalle.toLocalDate(), heureDispo)
+                                           : null;
+                                   LocalDateTime dernierRetour = dernierRetourParVehiculeAff.get(vehiculeCand.getIdVehicule());
+                                   LocalDateTime departAssigne = departAssigneParVehiculeAff.get(vehiculeCand.getIdVehicule());
+
+                                   LocalDateTime dispoEffective = dispoDuJour;
+                                   if (dispoEffective == null || (dernierRetour != null && dernierRetour.isAfter(dispoEffective))) {
+                                       dispoEffective = dernierRetour;
+                                   }
+                                   if (dispoEffective == null || (departAssigne != null && departAssigne.isAfter(dispoEffective))) {
+                                       dispoEffective = departAssigne;
+                                   }
+                                   if (dispoEffective == null) {
+                                       continue;
+                                   }
+
+                                   boolean dansFenetreCand = (debutIntervalle == null || !dispoEffective.isBefore(debutIntervalle))
+                                           && (finIntervalle == null || !dispoEffective.isAfter(finIntervalle));
+                                   if (!dansFenetreCand) {
+                                       continue;
+                                   }
+
+                                   String origine = (dernierRetour != null)
+                                           ? "retour vehicule"
+                                           : "heure disponibilite";
+
+                                   String utilise = vehiculesUtilisesDansGroupe.contains(vehiculeCand.getIdVehicule())
+                                       ? "OUI"
+                                       : "NON";
+
+                                   candidatsFenetre.add(new Object[] {
+                                           vehiculeCand.getReference(),
+                                           vehiculeCand.getNbPlace(),
+                                           vehiculeCand.getTypeVehicule(),
+                                           dispoEffective,
+                                       origine,
+                                       utilise
+                                   });
+                               }
+
+                               candidatsFenetre.sort((c1, c2) -> {
+                                   String ref1 = c1 != null && c1.length > 0 && c1[0] != null ? String.valueOf(c1[0]) : "";
+                                   String ref2 = c2 != null && c2.length > 0 && c2[0] != null ? String.valueOf(c2[0]) : "";
+                                   return ref1.compareToIgnoreCase(ref2);
+                               });
+
+                               if (candidatsFenetre.isEmpty()) {
+                            %>
+                                <tr>
+                                    <td colspan="6">Aucun vehicule candidat detecte dans l'intervalle.</td>
+                                </tr>
+                            <% } else {
+                                   for (Object[] row : candidatsFenetre) {
+                            %>
+                                <tr>
+                                    <td><%= safe(row[0]) %></td>
+                                    <td><%= safe(row[1]) %></td>
+                                    <td><%= safe(row[2]) %></td>
+                                    <td><%= safe(row[3]) %></td>
+                                    <td><%= safe(row[4]) %></td>
+                                    <td><%= safe(row[5]) %></td>
+                                </tr>
+                            <%     }
+                               }
+                            %>
+                            </tbody>
+                        </table>
+                        <div style="margin-top:8px;">
                         Groupe cree par retour vehicule
                         <% if (referenceVehiculePivot != null && !referenceVehiculePivot.isBlank()) { %>
                             : <strong><%= safe(referenceVehiculePivot) %></strong>
                         <% } else if (idVehiculePivot != null && idVehiculePivot > 0) { %>
                             : <strong>V<%= idVehiculePivot %></strong>
                         <% } %>
+                        </div>
                     </div>
                 <% } %>
                 <p class="meta-line">
@@ -831,9 +1151,18 @@
                                        ? Math.max(0, reportsEnEntreeParReservation.getOrDefault(idReservationAffichee, 0))
                                        : Math.max(0, passagersDemandesParReservation.getOrDefault(idReservationAffichee,
                                                reservation != null ? reservation.getNbPassager() : 0));
-                               String etat = estReportEntree
-                                       ? (assignee ? "Reportee (entree groupe) - Assignee" : "Reportee (entree groupe) - Non assignee")
-                                       : (assignee ? "Assignee" : "Reportee / Non assignee");
+                               String etat;
+                               if (estReportEntree) {
+                                   etat = assignee
+                                           ? "Reportee (entree groupe, reservation non assignee) - Assignee"
+                                           : "Reportee (entree groupe, reservation non assignee) - Non assignee";
+                               } else if (groupeCreeParRetourVehicule) {
+                                   etat = assignee
+                                           ? "Entrante (fenetre retour) - Assignee"
+                                           : "Entrante (fenetre retour) - Non assignee";
+                               } else {
+                                   etat = assignee ? "Assignee" : "Reportee / Non assignee";
+                               }
                         %>
                             <tr>
                                 <td><%= idReservationAffichee %></td>

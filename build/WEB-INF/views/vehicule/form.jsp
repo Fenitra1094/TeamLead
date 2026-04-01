@@ -12,6 +12,7 @@
 <%
     String ctx = request.getContextPath();
     Object message = request.getAttribute("message");
+    Object error = request.getAttribute("error");
     Vehicule vehicule = (Vehicule) request.getAttribute("vehicule");
     String action = (String) request.getAttribute("action");
     if (action == null || action.isBlank()) {
@@ -21,6 +22,13 @@
     String reference = vehicule != null && vehicule.getReference() != null ? vehicule.getReference() : "";
     String nbPlace = vehicule != null ? String.valueOf(vehicule.getNbPlace()) : "";
     String typeVehicule = vehicule != null && vehicule.getTypeVehicule() != null ? vehicule.getTypeVehicule() : "";
+    String heureDisponibilite = "";
+    if (vehicule != null && vehicule.getHeureDisponibilite() != null) {
+        heureDisponibilite = vehicule.getHeureDisponibilite().toString();
+        if (heureDisponibilite.length() >= 5) {
+            heureDisponibilite = heureDisponibilite.substring(0, 5);
+        }
+    }
 %>
 
 <nav class="navbar">
@@ -37,6 +45,10 @@
 
 <% if (message != null) { %>
     <div class="alert success"><%= message %></div>
+<% } %>
+
+<% if (error != null) { %>
+    <div class="alert error"><%= error %></div>
 <% } %>
 
 <section class="card">
@@ -59,6 +71,11 @@
             <div>
                 <label>Type vehicule</label>
                 <input type="text" name="typeVehicule" value="<%= typeVehicule %>">
+            </div>
+
+            <div>
+                <label>Heure disponibilite</label>
+                <input type="time" name="heureDisponibilite" value="<%= heureDisponibilite %>" required>
             </div>
         </div>
 

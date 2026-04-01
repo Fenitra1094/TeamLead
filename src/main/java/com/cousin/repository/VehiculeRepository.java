@@ -1,5 +1,7 @@
 package com.cousin.repository;
 
+import com.cousin.model.Vehicule;
+import com.cousin.util.DbConnection;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
@@ -8,9 +10,6 @@ import java.sql.Time;
 import java.time.LocalTime;
 import java.util.ArrayList;
 import java.util.List;
-
-import com.cousin.model.Vehicule;
-import com.cousin.util.DbConnection;
 
 public class VehiculeRepository {
     public void insert(Vehicule vehicule) throws SQLException {
@@ -78,6 +77,27 @@ public class VehiculeRepository {
              PreparedStatement statement = connection.prepareStatement(
                      "SELECT Id_Vehicule, Reference, nbPlace, TypeVehicule, HeureDisponibilite FROM " +
                      qualifiedTable(connection, "Vehicule") + " ORDER BY Id_Vehicule");
+             ResultSet resultSet = statement.executeQuery()) {
+            while (resultSet.next()) {
+                Vehicule vehicule = new Vehicule();
+                vehicule.setIdVehicule(resultSet.getInt("Id_Vehicule"));
+                vehicule.setReference(resultSet.getString("Reference"));
+                vehicule.setNbPlace(resultSet.getInt("nbPlace"));
+                vehicule.setTypeVehicule(resultSet.getString("TypeVehicule"));
+                vehicule.setHeureDisponibilite(readHeureDisponibilite(resultSet));
+                vehicules.add(vehicule);
+            }
+        }
+
+        return vehicules;
+    }
+
+    public List<Vehicule> findAll(Connection connection) throws SQLException {
+        List<Vehicule> vehicules = new ArrayList<>();
+
+        try (PreparedStatement statement = connection.prepareStatement(
+                "SELECT Id_Vehicule, Reference, nbPlace, TypeVehicule, HeureDisponibilite FROM " +
+                        qualifiedTable(connection, "Vehicule") + " ORDER BY Id_Vehicule");
              ResultSet resultSet = statement.executeQuery()) {
             while (resultSet.next()) {
                 Vehicule vehicule = new Vehicule();
